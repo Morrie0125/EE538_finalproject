@@ -3,7 +3,7 @@
 ## Format Description
 
 Grid
-- GRID <W> <H>
+- GRID (W) (H)
 
 Components
 - COMPONENTS <N>
