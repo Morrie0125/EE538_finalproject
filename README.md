@@ -6,21 +6,21 @@ Grid
 GRID <W> <H>
 
 Components
-COMPONENTS <N>
-COMPONENT <comp_id> <w> <h> <movable|fixed> [x y]
--movable components do not require coordinates in the input
--fixed components must provide (x, y)
+- COMPONENTS <N>
+- COMPONENT <comp_id> <w> <h> <movable|fixed> [x y]
+- movable components do not require coordinates in the input
+- fixed components must provide (x, y)
 
 Pins
-PINS <P>
-PIN <comp_id> <pin_name> <dx> <dy>
--(dx, dy) is the pin location relative to the component origin
+- PINS <P>
+- PIN <comp_id> <pin_name> <dx> <dy>
+- (dx, dy) is the pin location relative to the component origin
 
 Nets
-NETS <M>
-NET <net_id> <degree> <comp.pin> <comp.pin> ...
--each net connects 2 or more pins
--nets are modeled as hyperedges
+- NETS <M>
+- NET <net_id> <degree> <comp.pin> <comp.pin> ...
+- each net connects 2 or more pins
+- nets are modeled as hyperedges
 
 
 ## Files
