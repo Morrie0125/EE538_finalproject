@@ -15,8 +15,7 @@ Parameters:
     - (x, y): node placement location
     - (pin_dx, pin_dy): offset of the pin from the node position
 
-Returns:
-    - index of the newly added node
+Returns: index of the newly added node
 */
 static int add_node(PlacementState& state,
                     const std::string& id,

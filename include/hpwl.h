@@ -2,7 +2,6 @@
 #define HPWL_H
 
 #include <utility>
-
 #include "types.h"
 
 namespace hpwl {

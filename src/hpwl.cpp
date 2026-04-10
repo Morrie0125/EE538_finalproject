@@ -6,7 +6,6 @@
 #include <string>
 
 namespace hpwl {
-
 /*
 Compute the absolute (x, y) location of a pin.
 Convention:
