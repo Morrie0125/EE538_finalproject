@@ -1,5 +1,5 @@
-#ifndef EE538_IO_ENGINE_H
-#define EE538_IO_ENGINE_H
+#ifndef IO_ENGINE_H
+#define IO_ENGINE_H
 
 #include <string>
 

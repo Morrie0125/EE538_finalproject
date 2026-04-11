@@ -1,5 +1,5 @@
-#ifndef EE538_HPWL_ENGINE_H
-#define EE538_HPWL_ENGINE_H
+#ifndef HPWL_ENGINE_H
+#define HPWL_ENGINE_H
 
 #include <utility>
 
