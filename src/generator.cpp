@@ -5,7 +5,7 @@
 #include <random>
 #include <unordered_set>
 #include <algorithm>
-#include "commands.h"
+#include "../include/commands.h"
 
 using namespace std;
 

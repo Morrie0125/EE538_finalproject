@@ -1,9 +1,9 @@
-#include "hpwl.h"
-
 #include <algorithm>    // for std::min, std::max
 #include <limits>       // for numeric limits (init bounding box)
 #include <stdexcept>    // for runtime_error
 #include <string>
+
+#include "../include/hpwl_engine.h"
 
 namespace hpwl {
 /*

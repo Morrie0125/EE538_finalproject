@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "commands.h"
+#include "../include/commands.h"
 
 using namespace std;
 

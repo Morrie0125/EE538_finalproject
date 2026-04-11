@@ -1,7 +1,7 @@
 #include <iostream>
-#include "parser.h"
-#include "writer.h"
-#include "commands.h"
+
+#include "../include/commands.h"
+#include "../include/io_engine.h"
 
 using namespace std;
 

@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "hpwl.h"
+#include "../include/hpwl_engine.h"
 
 using hpwl::net_hpwl;
 using hpwl::total_hpwl;

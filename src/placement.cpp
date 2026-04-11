@@ -9,7 +9,9 @@
 #include <random>
 #include <algorithm>
 #include <limits>
-#include "commands.h"
+
+#include "../include/commands.h"
+#include "../include/placement_engine.h"
 
 using namespace std;
 
@@ -470,6 +472,22 @@ private:
     }
 };
 
+bool run_placement_engine(const string& input_path,
+                          const string& output_path,
+                          long long& total_hpwl,
+                          unsigned seed) {
+    try {
+        PlacementDB db;
+        db.parseFile(input_path);
+        db.randomLegalPlacement(seed);
+        total_hpwl = db.totalHPWL();
+        db.writePlacementFile(output_path);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 int run_placement_cli(int argc, char* argv[]) {
     if (argc < 2) {
         cerr << "Usage: " << argv[0] << " <input_file>\n";
@@ -479,11 +497,11 @@ int run_placement_cli(int argc, char* argv[]) {
     try {
         PlacementDB db;
         db.parseFile(argv[1]);
-
         db.randomLegalPlacement(12345);
-
         db.printPlacement();
-        cout << "Total HPWL = " << db.totalHPWL() << "\n";
+
+        long long total_cost = db.totalHPWL();
+        cout << "Total HPWL = " << total_cost << "\n";
         db.writePlacementFile("placement_out.txt");
     }
     catch (const exception& e) {
