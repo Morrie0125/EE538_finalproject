@@ -22,6 +22,7 @@ static void print_help() {
     cout << "  generate <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";
     cout << "  place <input_file>\n";
     cout << "  roundtrip_test [input_file] [output_file]\n";
+    cout << "  visualize [placement_file]\n";
     cout << "  help\n";
     cout << "  exit\n";
 }
@@ -50,6 +51,9 @@ static int dispatch_command(const vector<string>& tokens) {
     }
     if (tokens[0] == "roundtrip_test") {
         return run_roundtrip_test_cli(argc, argv.data());
+    }
+    if (tokens[0] == "visualize") {
+        return run_visualize_cli(argc, argv.data());
     }
 
     cerr << "Unknown command: " << tokens[0] << "\n";
