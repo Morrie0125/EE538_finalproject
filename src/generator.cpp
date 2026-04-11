@@ -5,6 +5,7 @@
 #include <random>
 #include <unordered_set>
 #include <algorithm>
+#include "commands.h"
 
 using namespace std;
 
@@ -49,7 +50,7 @@ static bool canPlaceFixed(const vector<GenComponent>& comps, int idx,
     return true;
 }
 
-int main(int argc, char* argv[]) {
+int run_generator_cli(int argc, char* argv[]) {
     if (argc < 7) {
         cerr << "Usage:\n";
         cerr << argv[0] << " <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";

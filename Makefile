@@ -11,16 +11,10 @@ endif
 
 .PHONY: all clean
 
-all: generator placement roundtrip_test
+all: main
 
-generator: src/generator.cpp
-	$(CXX) $(CXXFLAGS) src/generator.cpp -o generator$(EXE_EXT)
-
-placement: src/placement.cpp src/parser.cpp src/writer.cpp
-	$(CXX) $(CXXFLAGS) src/placement.cpp src/parser.cpp src/writer.cpp -o placement$(EXE_EXT)
-
-roundtrip_test: src/test_roundtrip.cpp src/parser.cpp src/writer.cpp
-	$(CXX) $(CXXFLAGS) src/test_roundtrip.cpp src/parser.cpp src/writer.cpp -o roundtrip_test$(EXE_EXT)
+main: src/main.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/parser.cpp src/writer.cpp
+	$(CXX) $(CXXFLAGS) src/main.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/parser.cpp src/writer.cpp -o main$(EXE_EXT)
 
 clean:
-	-$(RM) generator$(EXE_EXT) placement$(EXE_EXT) roundtrip_test$(EXE_EXT)
+	-$(RM) main$(EXE_EXT)

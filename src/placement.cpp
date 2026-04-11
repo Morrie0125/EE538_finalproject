@@ -9,6 +9,7 @@
 #include <random>
 #include <algorithm>
 #include <limits>
+#include "commands.h"
 
 using namespace std;
 
@@ -469,7 +470,7 @@ private:
     }
 };
 
-int main(int argc, char* argv[]) {
+int run_placement_cli(int argc, char* argv[]) {
     if (argc < 2) {
         cerr << "Usage: " << argv[0] << " <input_file>\n";
         return 1;

@@ -1,13 +1,24 @@
 #include <iostream>
 #include "parser.h"
 #include "writer.h"
+#include "commands.h"
 
 using namespace std;
 
-int main() {
+int run_roundtrip_test_cli(int argc, char* argv[]) {
+    string inputPath = "examples/tiny_case.txt";
+    string outputPath = "examples/roundtrip_out.txt";
+
+    if (argc >= 2) inputPath = argv[1];
+    if (argc >= 3) outputPath = argv[2];
+    if (argc > 3) {
+        cerr << "Usage: " << argv[0] << " [input_file] [output_file]\n";
+        return 1;
+    }
+
     PlacementState s1, s2;
 
-    if (!read_netlist("examples/tiny_case.txt", s1)) {
+    if (!read_netlist(inputPath, s1)) {
         cerr << "Failed to read original file\n";
         return 1;
     }
@@ -20,12 +31,12 @@ int main() {
         }
     }
 
-    if (!write_placement("examples/roundtrip_out.txt", s1, 0, "roundtrip")) {
+    if (!write_placement(outputPath, s1, 0, "roundtrip")) {
         cerr << "Failed to write output file\n";
         return 1;
     }
 
-    if (!read_netlist("examples/roundtrip_out.txt", s2)) {
+    if (!read_netlist(outputPath, s2)) {
         cerr << "Failed to read roundtrip file\n";
         return 1;
     }
