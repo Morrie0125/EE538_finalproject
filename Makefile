@@ -22,6 +22,10 @@ main: src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test
 hpwl_test: src/hpwl.cpp src/tests_hpwl.cpp
 	$(CXX) $(CXXFLAGS) src/hpwl.cpp src/tests_hpwl.cpp -o hpwl_test$(EXE_EXT)
 
+# Adjacency test executable
+adjacency_test: src/adjacency.cpp src/test_adjacency.cpp
+	$(CXX) $(CXXFLAGS) src/adjacency.cpp src/test_adjacency.cpp -o adjacency_test$(EXE_EXT)
+
 # Clean build artifacts
 clean:
 	-$(RM) main$(EXE_EXT) hpwl_test$(EXE_EXT)
