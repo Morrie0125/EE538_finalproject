@@ -142,3 +142,29 @@ Main features:
 This ensures correctness of HPWL implementation.
 
 ---
+
+### `src/adjacency.cpp`
+Builds node-to-net adjacency structures for efficient cost evaluation
+
+Main features:
+- constructs node_to_nets, mapping each node to all incident nets
+- iterates over all nets and their pins to build adjacency lists
+- prepares per-net HPWL cache storage for future optimization
+- identifies only nets affected by moved node
+
+This enables incremental HPWL updates by avoiding recomputation over all nets.
+
+---
+
+### `src/test_adjacency.cpp`
+Unit tests for validating adjacency construction.
+
+Main features:
+- constructs small, hand-checkable placement states
+- verifies correct mapping from nodes to incident nets
+- checks consistency between nets and adjacency lists
+- validates size and structure of adjacency and HPWL cache
+- Outputs "All adjacency tests passed" if all checks succeed (run ./adjacency_test)
+
+This ensures correctness of adjacency structures before use in incremental cost evaluation.
+---
