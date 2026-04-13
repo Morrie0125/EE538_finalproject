@@ -137,7 +137,7 @@ Main features:
 - constructs small, hand-checkable placement states
 - tests 2-pin nets, 3-pin nets, hyperedges (multi-pin nets), pin offset handling
 - verifies both per-net and total HPWL
-- Outputs "All HPWL tests passed" if all checks succeed
+- Outputs "All HPWL tests passed" if all checks succeed (run ./hpwl_test)
 
 This ensures correctness of HPWL implementation.
 

@@ -13,10 +13,15 @@ endif
 
 .PHONY: all clean
 
-all: main
+all: main hpwl_test
 
-main: src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp
-	$(CXX) $(CXXFLAGS) src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp $(READLINE_LIBS) -o main$(EXE_EXT)
+main: src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp
+	$(CXX) $(CXXFLAGS) src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp $(READLINE_LIBS) -o main$(EXE_EXT)
 
+# HPWL test executable
+hpwl_test: src/hpwl.cpp src/tests_hpwl.cpp
+	$(CXX) $(CXXFLAGS) src/hpwl.cpp src/tests_hpwl.cpp -o hpwl_test$(EXE_EXT)
+
+# Clean build artifacts
 clean:
-	-$(RM) main$(EXE_EXT)
+	-$(RM) main$(EXE_EXT) hpwl_test$(EXE_EXT)
