@@ -117,3 +117,28 @@ This is mainly used for debugging and demonstrating placement results.
 
 ---
 
+### `include/hpwl.cpp`
+Implements Half-Perimeter Wirelength (HPWL) cost computation. HPWL is defined as (max_x - min_x) + (max_y - min_y)
+
+Main features:
+- computes per-net HPWL using bounding box of pins
+- computes total HPWL across all nets
+- uses pin offsets relative to component positions
+- validates node and pin indices before computation
+
+This is used as the placement cost function and designed to be reusable by placement and SA optimization algorithm.
+
+---
+
+### `include/tests_hpwl.cpp`
+Unit tests for validating HPWL implementation.
+
+Main features:
+- constructs small, hand-checkable placement states
+- tests 2-pin nets, 3-pin nets, hyperedges (multi-pin nets), pin offset handling
+- verifies both per-net and total HPWL
+- Outputs "All HPWL tests passed" if all checks succeed
+
+This ensures correctness of HPWL implementation.
+
+---
