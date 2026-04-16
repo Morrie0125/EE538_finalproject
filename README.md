@@ -137,7 +137,7 @@ Main features:
 - constructs small, hand-checkable placement states
 - tests 2-pin nets, 3-pin nets, hyperedges (multi-pin nets), pin offset handling
 - verifies both per-net and total HPWL
-- Outputs "All HPWL tests passed" if all checks succeed (run ./hpwl_test)
+- outputs "All HPWL tests passed" if all checks succeed (run ./hpwl_test)
 
 This ensures correctness of HPWL implementation.
 
@@ -151,6 +151,7 @@ Main features:
 - iterates over all nets and their pins to build adjacency lists
 - prepares per-net HPWL cache storage for future optimization
 - identifies only nets affected by moved node
+- outputs "ALL adjacency tests passed" if all checks succeed (run ./adjacency_test)
 
 This enables incremental HPWL updates by avoiding recomputation over all nets.
 
