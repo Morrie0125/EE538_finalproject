@@ -168,4 +168,28 @@ Main features:
 - Outputs "All adjacency tests passed" if all checks succeed (run ./adjacency_test)
 
 This ensures correctness of adjacency structures before use in incremental cost evaluation.
+
+---
+
+### `src/delta_hpwl.cpp`
+Implements incremental HPWL evaluation for placement moves.
+
+Instead of recomputing HPWL over all nets, this computs change in cost (ΔHPWL) by only updating nets affected by moved nodes. This significantly reduces computation compared to a full recomputation. Given a set of moved nodes:
+- uses node_to_nets (from adjaency) to collect affected nets
+- recompute HPWL for only those nets
+- returns:
+    - Δ = Σ(new_hpwl - old_hpwl)
+    - list of affected nets
+
+---
+
+### `src/test_delta_hpwl.cpp`
+Unit tests validating correctness of incremental HPWL. 
+
+Main features:
+- calidates by comparing delta_hpwl == (full_hpwl_after - full_hpwl_before)
+- covers small deterministic case (verifies exact affected nets, easy to manually check)
+- covers randomized stress tests (random placements and nets, random node moves (1-3 nodes), ensures correctness across many configurations) 
+- outputs "All delta HPWL tests passed" if all checks succeed (run make delta_hpwl_test, ./delta_hpwl_test)
+
 ---

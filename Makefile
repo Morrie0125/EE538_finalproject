@@ -26,6 +26,10 @@ hpwl_test: src/hpwl.cpp src/tests_hpwl.cpp
 adjacency_test: src/adjacency.cpp src/test_adjacency.cpp
 	$(CXX) $(CXXFLAGS) src/adjacency.cpp src/test_adjacency.cpp -o adjacency_test$(EXE_EXT)
 
+# Delta HPWL v1
+delta_hpwl_test: src/delta_hpwl.cpp src/test_delta_hpwl.cpp src/adjacency.cpp
+	$(CXX) $(CXXFLAGS) src/delta_hpwl.cpp src/test_delta_hpwl.cpp src/adjacency.cpp -o delta_hpwl_test$(EXE_EXT)
+
 # Clean build artifacts
 clean:
 	-$(RM) main$(EXE_EXT) hpwl_test$(EXE_EXT)
