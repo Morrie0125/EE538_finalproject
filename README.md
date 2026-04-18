@@ -1,195 +1,65 @@
-# EE538_finalproject
+# EE538 Final Project
 
-## Run Program
+## Quick Start
 
-Build:
+Build
 - macOS/Linux: `make`
 - Windows (MSYS2/MinGW): `mingw32-make`
 
-Run interactive CLI:
+Run CLI
 - macOS/Linux: `./main`
-- Windows: `.\\main.exe`
+- Windows: `.\main.exe`
 
-Then enter commands in the terminal:
+Common commands
 - `help`
 - `generate case1.txt 10 10 5 7 12345`
 - `place case1.txt`
 - `roundtrip_test`
 - `exit`
 
+## Input Format
 
+- `GRID <W> <H>`
+- `COMPONENTS <N>`
+- `COMPONENT <id> <w> <h> <movable|fixed> [x y]`
+- `PINS <P>`
+- `PIN <comp_id> <pin_name> <dx> <dy>`
+- `NETS <M>`
+- `NET <net_id> <degree> <comp.pin> <comp.pin> ...`
 
-## Format Description
+Notes
+- `movable` components do not need `(x, y)`.
+- `fixed` components must provide `(x, y)`.
+- Nets are hyperedges (degree >= 2).
 
-Grid
-- GRID (W) (H)
+## Move Engine Test (Updated)
 
-Components
-- COMPONENTS <N>
-- COMPONENT <comp_id> <w> <h> <movable|fixed> [x y]
-- movable components do not require coordinates in the input
-- fixed components must provide (x, y)
+Build target
+- `make move_engine_test`
+- This target links both `src/test_move_engine.cpp` and `src/generator.cpp`.
 
-Pins
-- PINS <P>
-- PIN <comp_id> <pin_name> <dx> <dy>
-- (dx, dy) is the pin location relative to the component origin
+Modes
+- Regression (summary + per-seed result, low noise):
+    - `./move_engine_test regression [start_seed] [count]`
+- Debug (single seed, step-by-step log):
+    - `./move_engine_test debug <seed>`
+    - log file: `move_debug_seed_<seed>.log`
 
-Nets
-- NETS <M>
-- NET <net_id> <degree> <comp.pin> <comp.pin> ...
-- each net connects 2 or more pins
-- nets are modeled as hyperedges
+Behavior
+- Regression internally samples legal generator parameters from seed.
+- Each case reports: seed + PASS/FAIL + reason.
+- Debug uses the same seed-to-parameters logic, so failing seeds are reproducible.
 
+## Project Structure (Short)
 
-## Files
-
-### `src/main.cpp`
-Interactive CLI entry point.
-
-Responsibilities:
-- read one command line from terminal
-- parse tokens
-- print help
-- dispatch to command wrappers
-
----
-
-### `include/commands.h`
-Shared declarations for CLI command wrappers:
-- `run_generator_cli(...)`
-- `run_placement_cli(...)`
-- `run_roundtrip_test_cli(...)`
-
----
-
-### `src/generator.cpp`
-Implements the `generate` command.
-
-It creates:
-- grid size
-- components with random sizes
-- movable / fixed components
-- pins inside each component
-- nets connecting pins
-
-Output: benchmark file such as `case1.txt`
-
----
-
-### `src/placement.cpp`
-Implements the `place` command.
-
-Reads the benchmark file and performs a legal initial placement.
-
-Main features:
-- parses the input file
-- handles variable-size components
-- supports fixed and movable components
-- checks overlap and boundary legality
-- performs random legal placement for movable components
-- computes total pin-based HPWL
-- writes placement result to `placement_out.txt`
-
----
-
-### `src/test_roundtrip.cpp`
-Implements the `roundtrip_test` command.
-
-Default behavior:
-- read `examples/tiny_case.txt`
-- write `examples/roundtrip_out.txt`
-- read it back and check grid/node/net consistency
-
-It also supports optional paths:
-- `roundtrip_test [input_file] [output_file]`
-
----
-
-### `visualize.py`
-Reads `placement_out.txt` and visualizes:
-- grid boundary
-- component locations
-- pins
-- pin-to-pin net connections
-
-This is mainly used for debugging and demonstrating placement results.
-
----
-
-### `include/hpwl.cpp`
-Implements Half-Perimeter Wirelength (HPWL) cost computation. HPWL is defined as (max_x - min_x) + (max_y - min_y)
-
-Main features:
-- computes per-net HPWL using bounding box of pins
-- computes total HPWL across all nets
-- uses pin offsets relative to component positions
-- validates node and pin indices before computation
-
-This is used as the placement cost function and designed to be reusable by placement and SA optimization algorithm.
-
----
-
-### `include/tests_hpwl.cpp`
-Unit tests for validating HPWL implementation.
-
-Main features:
-- constructs small, hand-checkable placement states
-- tests 2-pin nets, 3-pin nets, hyperedges (multi-pin nets), pin offset handling
-- verifies both per-net and total HPWL
-- outputs "All HPWL tests passed" if all checks succeed (run ./hpwl_test)
-
-This ensures correctness of HPWL implementation.
-
----
-
-### `src/adjacency.cpp`
-Builds node-to-net adjacency structures for efficient cost evaluation
-
-Main features:
-- constructs node_to_nets, mapping each node to all incident nets
-- iterates over all nets and their pins to build adjacency lists
-- prepares per-net HPWL cache storage for future optimization
-- identifies only nets affected by moved node
-- outputs "ALL adjacency tests passed" if all checks succeed (run ./adjacency_test)
-
-This enables incremental HPWL updates by avoiding recomputation over all nets.
-
----
-
-### `src/test_adjacency.cpp`
-Unit tests for validating adjacency construction.
-
-Main features:
-- constructs small, hand-checkable placement states
-- verifies correct mapping from nodes to incident nets
-- checks consistency between nets and adjacency lists
-- validates size and structure of adjacency and HPWL cache
-- Outputs "All adjacency tests passed" if all checks succeed (run ./adjacency_test)
-
-This ensures correctness of adjacency structures before use in incremental cost evaluation.
-
----
-
-### `src/delta_hpwl.cpp`
-Implements incremental HPWL evaluation for placement moves.
-
-Instead of recomputing HPWL over all nets, this computs change in cost (ΔHPWL) by only updating nets affected by moved nodes. This significantly reduces computation compared to a full recomputation. Given a set of moved nodes:
-- uses node_to_nets (from adjaency) to collect affected nets
-- recompute HPWL for only those nets
-- returns:
-    - Δ = Σ(new_hpwl - old_hpwl)
-    - list of affected nets
-
----
-
-### `src/test_delta_hpwl.cpp`
-Unit tests validating correctness of incremental HPWL. 
-
-Main features:
-- calidates by comparing delta_hpwl == (full_hpwl_after - full_hpwl_before)
-- covers small deterministic case (verifies exact affected nets, easy to manually check)
-- covers randomized stress tests (random placements and nets, random node moves (1-3 nodes), ensures correctness across many configurations) 
-- outputs "All delta HPWL tests passed" if all checks succeed (run make delta_hpwl_test, ./delta_hpwl_test)
+- `src/main.cpp`: CLI entry.
+- `src/generator.cpp`: random benchmark generator.
+- `src/placement.cpp`: parse + legal placement + placement output.
+- `src/hpwl.cpp`: full HPWL calculation.
+- `src/adjacency.cpp`: node-to-net adjacency.
+- `src/delta_hpwl.cpp`: incremental HPWL delta.
+- `src/test_move_engine.cpp`: regression/debug move-engine tests.
+- `src/test_roundtrip.cpp`: parser-writer roundtrip test.
+- `scripts/visualize.py`: placement visualization.
 
 ---

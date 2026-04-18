@@ -31,8 +31,8 @@ delta_hpwl_test: src/delta_hpwl.cpp src/test_delta_hpwl.cpp src/adjacency.cpp
 	$(CXX) $(CXXFLAGS) src/delta_hpwl.cpp src/test_delta_hpwl.cpp src/adjacency.cpp -o delta_hpwl_test$(EXE_EXT)
 
 # Move engine test executable
-move_engine_test: src/test_move_engine.cpp
-	$(CXX) $(CXXFLAGS) src/test_move_engine.cpp -o move_engine_test$(EXE_EXT)
+move_engine_test: src/test_move_engine.cpp src/generator.cpp
+	$(CXX) $(CXXFLAGS) src/test_move_engine.cpp src/generator.cpp -o move_engine_test$(EXE_EXT)
 
 # Clean build artifacts
 clean:
