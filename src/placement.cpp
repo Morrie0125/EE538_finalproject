@@ -42,6 +42,25 @@ struct Net {
     vector<NetPinRef> pins;
 };
 
+enum class MoveType {
+    NONE,
+    RELOCATE,
+    SWAP
+};
+
+struct MoveRecord {
+    MoveType type = MoveType::NONE;
+
+    int compA = -1;
+    int compB = -1;
+
+    int oldAx = -1, oldAy = -1;
+    int oldBx = -1, oldBy = -1;
+
+    int newAx = -1, newAy = -1;
+    int newBx = -1, newBy = -1;
+};
+
 class PlacementDB {
 public:
     int gridW = 0;
@@ -158,6 +177,15 @@ public:
         c.x = newX;
         c.y = newY;
         stampComponent(compIdx, newX, newY, occ);
+
+        MoveRecord rec;
+        rec.type = MoveType::RELOCATE;
+        rec.compA = compIdx;
+        rec.oldAx = oldX;
+        rec.oldAy = oldY;
+        rec.newAx = newX;
+        rec.newAy = newY;
+        moveHistory.push_back(rec);
         return true;
     }
 
@@ -192,7 +220,90 @@ public:
 
         stampComponent(a, ca.x, ca.y, occ);
         stampComponent(b, cb.x, cb.y, occ);
+
+        MoveRecord rec;
+        rec.type = MoveType::SWAP;
+        rec.compA = a;
+        rec.compB = b;
+        rec.oldAx = ax;
+        rec.oldAy = ay;
+        rec.oldBx = bx;
+        rec.oldBy = by;
+        rec.newAx = bx;
+        rec.newAy = by;
+        rec.newBx = ax;
+        rec.newBy = ay;
+
+        moveHistory.push_back(rec);
+
         return true;
+    }
+
+    bool restoreLastMove() {
+        if (moveHistory.empty()) return false;
+
+        MoveRecord rec = moveHistory.back();
+        moveHistory.pop_back();
+
+        if (rec.type == MoveType::RELOCATE) {
+            int a = rec.compA;
+            if (a < 0 || a >= (int)comps.size()) return false;
+
+            auto& ca = comps[a];
+
+            unstampComponent(a, ca.x, ca.y);
+
+            ca.x = rec.oldAx;
+            ca.y = rec.oldAy;
+
+            stampComponent(a, ca.x, ca.y, occ);
+            return true;
+        }
+
+        if (rec.type == MoveType::SWAP) {
+            int a = rec.compA;
+            int b = rec.compB;
+            if (a < 0 || a >= (int)comps.size()) return false;
+            if (b < 0 || b >= (int)comps.size()) return false;
+
+            auto& ca = comps[a];
+            auto& cb = comps[b];
+
+            unstampComponent(a, ca.x, ca.y);
+            unstampComponent(b, cb.x, cb.y);
+
+            ca.x = rec.oldAx;
+            ca.y = rec.oldAy;
+            cb.x = rec.oldBx;
+            cb.y = rec.oldBy;
+
+            stampComponent(a, ca.x, ca.y, occ);
+            stampComponent(b, cb.x, cb.y, occ);
+            return true;
+        }
+
+        return false;
+    }
+
+    size_t checkpoint() const {
+        return moveHistory.size();
+    }
+
+    bool rollbackTo(size_t cp) {
+        if (cp > moveHistory.size()) return false;
+
+        while (moveHistory.size() > cp) {
+            if (!restoreLastMove()) return false;
+        }
+        return true;
+    }
+
+    void commitMoves() {
+        moveHistory.clear();
+    }
+
+    size_t historySize() const {
+        return moveHistory.size();
     }
 
     bool isPlacementLegal() const {
@@ -264,7 +375,7 @@ public:
 }
 private:
     vector<vector<int>> occ;
-
+    vector<MoveRecord> moveHistory;
     static string trim(const string& s) {
         size_t l = s.find_first_not_of(" \t\r\n");
         if (l == string::npos) return "";
