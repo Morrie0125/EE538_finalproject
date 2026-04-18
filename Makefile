@@ -13,7 +13,7 @@ endif
 
 .PHONY: all clean
 
-all: main hpwl_test
+all: main hpwl_test adjacency_test delta_hpwl_test move_engine_test
 
 main: src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp
 	$(CXX) $(CXXFLAGS) src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp $(READLINE_LIBS) -o main$(EXE_EXT)
@@ -30,6 +30,10 @@ adjacency_test: src/adjacency.cpp src/test_adjacency.cpp
 delta_hpwl_test: src/delta_hpwl.cpp src/test_delta_hpwl.cpp src/adjacency.cpp
 	$(CXX) $(CXXFLAGS) src/delta_hpwl.cpp src/test_delta_hpwl.cpp src/adjacency.cpp -o delta_hpwl_test$(EXE_EXT)
 
+# Move engine test executable
+move_engine_test: src/test_move_engine.cpp
+	$(CXX) $(CXXFLAGS) src/test_move_engine.cpp -o move_engine_test$(EXE_EXT)
+
 # Clean build artifacts
 clean:
-	-$(RM) main$(EXE_EXT) hpwl_test$(EXE_EXT)
+	-$(RM) main$(EXE_EXT) hpwl_test$(EXE_EXT) adjacency_test$(EXE_EXT) delta_hpwl_test$(EXE_EXT) move_engine_test$(EXE_EXT)

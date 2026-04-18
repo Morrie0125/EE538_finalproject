@@ -98,8 +98,7 @@ public:
             }
         }
 
-        vector<vector<int>> occ(gridH, vector<int>(gridW, -1));
-
+        occ.assign(gridH, vector<int>(gridW, -1));
         // Mark fixed components
         for (int ci = 0; ci < (int)comps.size(); ++ci) {
             const auto& c = comps[ci];
@@ -137,6 +136,82 @@ public:
             c.y = py;
             stampComponent(ci, px, py, occ);
         }
+    }
+
+    bool moveComponent(int compIdx, int newX, int newY) {
+        if (compIdx < 0 || compIdx >= (int)comps.size()) return false;
+
+        auto& c = comps[compIdx];
+        if (c.fixed) return false;
+        if (c.x < 0 || c.y < 0) return false;
+
+        int oldX = c.x;
+        int oldY = c.y;
+
+        unstampComponent(compIdx, oldX, oldY);
+
+        if (!canPlaceAtCurrentOcc(compIdx, newX, newY)) {
+            stampComponent(compIdx, oldX, oldY, occ);
+            return false;
+        }
+
+        c.x = newX;
+        c.y = newY;
+        stampComponent(compIdx, newX, newY, occ);
+        return true;
+    }
+
+    bool swapComponents(int a, int b) {
+        if (a == b) return false;
+        if (a < 0 || a >= (int)comps.size()) return false;
+        if (b < 0 || b >= (int)comps.size()) return false;
+        if (comps[a].fixed || comps[b].fixed) return false;
+
+        auto& ca = comps[a];
+        auto& cb = comps[b];
+
+        if (ca.x < 0 || ca.y < 0 || cb.x < 0 || cb.y < 0) return false;
+
+        int ax = ca.x, ay = ca.y;
+        int bx = cb.x, by = cb.y;
+
+        unstampComponent(a, ax, ay);
+        unstampComponent(b, bx, by);
+
+        bool okA = canPlaceAtCurrentOcc(a, bx, by);
+        bool okB = canPlaceAtCurrentOcc(b, ax, ay);
+
+        if (!okA || !okB) {
+            stampComponent(a, ax, ay, occ);
+            stampComponent(b, bx, by, occ);
+            return false;
+        }
+
+        ca.x = bx; ca.y = by;
+        cb.x = ax; cb.y = ay;
+
+        stampComponent(a, ca.x, ca.y, occ);
+        stampComponent(b, cb.x, cb.y, occ);
+        return true;
+    }
+
+    bool isPlacementLegal() const {
+        vector<vector<int>> occ_local(gridH, vector<int>(gridW, -1));
+
+        for (int ci = 0; ci < (int)comps.size(); ++ci) {
+            const auto& c = comps[ci];
+
+            if (c.x < 0 || c.y < 0) return false;
+            if (!insideBoundary(c.x, c.y, c.w, c.h)) return false;
+
+            for (int yy = c.y; yy < c.y + c.h; ++yy) {
+                for (int xx = c.x; xx < c.x + c.w; ++xx) {
+                    if (occ_local[yy][xx] != -1) return false;
+                    occ_local[yy][xx] = ci;
+                }
+            }
+        }
+        return true;
     }
 
     void printPlacement() const {
@@ -188,6 +263,8 @@ public:
     }
 }
 private:
+    vector<vector<int>> occ;
+
     static string trim(const string& s) {
         size_t l = s.find_first_not_of(" \t\r\n");
         if (l == string::npos) return "";
@@ -403,7 +480,7 @@ private:
         }
 
         // Validate fixed placements
-        vector<vector<int>> occ(gridH, vector<int>(gridW, -1));
+        vector<vector<int>> occ_local(gridH, vector<int>(gridW, -1));
         for (int ci = 0; ci < (int)comps.size(); ++ci) {
             const auto& c = comps[ci];
             if (!c.fixed) continue;
@@ -411,10 +488,10 @@ private:
             if (!insideBoundary(c.x, c.y, c.w, c.h)) {
                 throw runtime_error("Fixed component out of boundary: " + c.id);
             }
-            if (!canPlaceAt(ci, c.x, c.y, occ)) {
+            if (!canPlaceAt(ci, c.x, c.y, occ_local)) {
                 throw runtime_error("Fixed component overlap: " + c.id);
             }
-            stampComponent(ci, c.x, c.y, occ);
+            stampComponent(ci, c.x, c.y, occ_local);
         }
     }
 
@@ -441,6 +518,29 @@ private:
                 occ[yy][xx] = compIdx;
             }
         }
+    }
+
+    void unstampComponent(int compIdx, int x, int y) {
+        const auto& c = comps[compIdx];
+        for (int yy = y; yy < y + c.h; ++yy) {
+            for (int xx = x; xx < x + c.w; ++xx) {
+                if (occ[yy][xx] == compIdx) {
+                    occ[yy][xx] = -1;
+                }
+            }
+        }
+    }
+
+    bool canPlaceAtCurrentOcc(int compIdx, int x, int y) const {
+    const auto& c = comps[compIdx];
+    if (!insideBoundary(x, y, c.w, c.h)) return false;
+
+    for (int yy = y; yy < y + c.h; ++yy) {
+        for (int xx = x; xx < x + c.w; ++xx) {
+            if (occ[yy][xx] != -1) return false;
+        }
+    }
+    return true;
     }
 
     pair<int,int> getAbsolutePinPos(int compIdx, int pinIdx) const {
