@@ -11,36 +11,12 @@
 #include <limits>
 
 #include "../include/commands.h"
+#include "../include/types.h"
 #include "../include/placement_engine.h"
 
 using namespace std;
 
-struct Pin {
-    string name;
-    int dx = 0;
-    int dy = 0;
-};
-
-struct Component {
-    string id;
-    int w = 1;
-    int h = 1;
-    bool fixed = false;
-    int x = -1;   // lower-left corner
-    int y = -1;
-    vector<Pin> pins;
-    unordered_map<string, int> pinNameToIdx;
-};
-
-struct NetPinRef {
-    int compIdx = -1;
-    int pinIdx = -1;
-};
-
-struct Net {
-    string id;
-    vector<NetPinRef> pins;
-};
+using Component = Node;
 
 enum class MoveType {
     NONE,
@@ -61,16 +37,15 @@ struct MoveRecord {
     int newBx = -1, newBy = -1;
 };
 
-class PlacementDB {
+class PlacementDB : public PlacementState {
 public:
-    int gridW = 0;
-    int gridH = 0;
-
-    vector<Component> comps;
-    vector<Net> nets;
-
-    unordered_map<string, int> compNameToIdx;
+    vector<Node>& comps;
+    unordered_map<string, int>& compNameToIdx;
     unordered_map<string, int> netNameToIdx;
+
+    PlacementDB()
+        : comps(nodes),
+          compNameToIdx(nodeNameToIdx) {}
 
     void parseFile(const string& filename) {
         ifstream fin(filename);
@@ -366,7 +341,7 @@ public:
     for (const auto& n : nets) {
         fout << "NET " << n.id << " " << n.pins.size();
         for (const auto& ref : n.pins) {
-            const auto& c = comps[ref.compIdx];
+            const auto& c = comps[ref.nodeIdx];
             const auto& p = c.pins[ref.pinIdx];
             fout << " " << c.id << "." << p.name;
         }
@@ -672,7 +647,7 @@ private:
         int maxY = numeric_limits<int>::min();
 
         for (const auto& ref : net.pins) {
-            auto [ax, ay] = getAbsolutePinPos(ref.compIdx, ref.pinIdx);
+            auto [ax, ay] = getAbsolutePinPos(ref.nodeIdx, ref.pinIdx);
             minX = min(minX, ax);
             maxX = max(maxX, ax);
             minY = min(minY, ay);
