@@ -20,6 +20,7 @@ namespace {
 const vector<string> kBuiltinCommands = {
     "generate",
     "place",
+    "sa_place",
     "roundtrip_test",
     "visualize",
     "help",
@@ -77,6 +78,7 @@ int dispatch_command(const vector<string>& tokens) {
         cout << "Commands:\n";
         cout << "  generate <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";
         cout << "  place <input_file>\n";
+        cout << "  sa_place <input> <output> <seed> <max_iters> <t0> <alpha> [--cost full|delta] [--moves_per_temp N] [--illegal_retry K] [--relocate_ratio R]\n";
         cout << "  roundtrip_test [input_file] [output_file]\n";
         cout << "  visualize [placement_file]\n";
         cout << "  help\n";
@@ -96,6 +98,9 @@ int dispatch_command(const vector<string>& tokens) {
     }
     if (tokens[0] == "place") {
         return run_placement_cli(argc, argv.data());
+    }
+    if (tokens[0] == "sa_place") {
+        return run_sa_place_cli(argc, argv.data());
     }
     if (tokens[0] == "roundtrip_test") {
         return run_roundtrip_test_cli(argc, argv.data());

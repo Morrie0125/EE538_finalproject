@@ -15,8 +15,8 @@ endif
 
 all: main hpwl_test adjacency_test delta_hpwl_test move_engine_test
 
-main: src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp
-	$(CXX) $(CXXFLAGS) src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp $(READLINE_LIBS) -o main$(EXE_EXT)
+main: src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/sa.cpp src/sa_logger.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp src/adjacency.cpp src/delta_hpwl.cpp
+	$(CXX) $(CXXFLAGS) src/main.cpp src/cli_repl.cpp src/generator.cpp src/placement.cpp src/sa.cpp src/sa_logger.cpp src/test_roundtrip.cpp src/visualize.cpp src/parser.cpp src/writer.cpp src/hpwl.cpp src/adjacency.cpp src/delta_hpwl.cpp $(READLINE_LIBS) -o main$(EXE_EXT)
 
 # HPWL test executable
 hpwl_test: src/hpwl.cpp src/tests_hpwl.cpp

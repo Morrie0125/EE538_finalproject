@@ -13,4 +13,7 @@ int run_roundtrip_test_cli(int argc, char* argv[]);
 // Runs the visualization CLI command by invoking the Python visualizer script.
 int run_visualize_cli(int argc, char* argv[]);
 
+// Runs simulated annealing placement optimization.
+int run_sa_place_cli(int argc, char* argv[]);
+
 #endif

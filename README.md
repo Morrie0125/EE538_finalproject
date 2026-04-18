@@ -14,6 +14,7 @@ Common commands
 - `help`
 - `generate case1.txt 10 10 5 7 12345`
 - `place case1.txt`
+- `sa_place examples/tiny_case.txt sa_out.txt 42 300 100 0.95 --cost full`
 - `roundtrip_test`
 - `exit`
 
@@ -50,11 +51,37 @@ Behavior
 - Each case reports: seed + PASS/FAIL + reason.
 - Debug uses the same seed-to-parameters logic, so failing seeds are reproducible.
 
+## SA Place (New)
+
+Command
+- `sa_place <input> <output> <seed> <max_iters> <t0> <alpha> [--cost full|delta] [--moves_per_temp N] [--illegal_retry K] [--relocate_ratio R]`
+
+Defaults
+- `--cost full`
+- `--moves_per_temp 100`
+- `--illegal_retry 3`
+- `--relocate_ratio 0.5` (API reserved; currently not used for sampling)
+
+Behavior summary
+- Objective: minimize total HPWL with legal placement only.
+- Output: writes best-so-far historical placement (not last state).
+- Step budget: `max_iters` counts SA steps; each step may try multiple illegal proposals up to retry limit.
+- Stage logging: every temperature stage writes one record, including partial final stage.
+
+Logs
+- SA automatically creates `logs/`.
+- Per run, two files are generated with source+timestamp naming:
+    - `logs/sa_place_<timestamp>.csv`
+    - `logs/sa_place_<timestamp>.log`
+- Key stage info and final summary are also printed to terminal.
+
 ## Project Structure (Short)
 
 - `src/main.cpp`: CLI entry.
 - `src/generator.cpp`: random benchmark generator.
 - `src/placement.cpp`: parse + legal placement + placement output.
+- `src/sa.cpp`: simulated annealing engine + `sa_place` command.
+- `src/sa_logger.cpp`: reusable SA log formatting and file output.
 - `src/hpwl.cpp`: full HPWL calculation.
 - `src/adjacency.cpp`: node-to-net adjacency.
 - `src/delta_hpwl.cpp`: incremental HPWL delta.
