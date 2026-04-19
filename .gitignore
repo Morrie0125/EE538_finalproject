@@ -13,6 +13,7 @@ demo/snaps/
 # Runtime outputs
 examples/roundtrip_out.txt
 logs/
+sweeps/
 
 # Move-engine test temporary files
 move_reg_case_seed_*.tmp.txt

@@ -433,6 +433,24 @@ size_t PlacementDB::historySize() const {
     return moveHistory.size();
 }
 
+bool PlacementDB::rebuildOccupancy() {
+    vector<vector<int>> rebuilt(gridH, vector<int>(gridW, -1));
+
+    for (int ci = 0; ci < static_cast<int>(comps.size()); ++ci) {
+        const auto& c = comps[ci];
+        if (c.x < 0 || c.y < 0) {
+            return false;
+        }
+        if (!canPlaceAt(ci, c.x, c.y, rebuilt)) {
+            return false;
+        }
+        stampComponent(ci, c.x, c.y, rebuilt);
+    }
+
+    occ = std::move(rebuilt);
+    return true;
+}
+
 bool PlacementDB::isPlacementLegal() const {
     vector<vector<int>> occ_local(gridH, vector<int>(gridW, -1));
 

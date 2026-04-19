@@ -35,6 +35,7 @@ public:
     bool rollbackTo(size_t cp);
     void commitMoves();
     size_t historySize() const;
+    bool rebuildOccupancy();
 
     bool isPlacementLegal() const;
     void printPlacement() const;
