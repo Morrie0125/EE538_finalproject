@@ -11,7 +11,7 @@
     "pin_max": 2,
     "net_degree_min": 2,
     "net_degree_max": 3,
-    "size_choices": [[1, 1], [2, 1], [1, 2], [2, 2]]
+    "size_choices": [[1,1],[2,1],[1,2],[2,2]]
   },
   "sa": {
     "input_path": "demo/demo_input_easy.txt",

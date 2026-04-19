@@ -25,6 +25,7 @@
 #include "../include/delta_hpwl.h"
 #include "../include/hpwl_engine.h"
 #include "../include/io_engine.h"
+#include "../include/placement_engine.h"
 #include "../include/sa_logger.h"
 
 using namespace std;
@@ -34,11 +35,6 @@ namespace {
 enum class CostMode {
     FULL,
     DELTA
-};
-
-enum class MoveType {
-    RELOCATE,
-    SWAP
 };
 
 enum class DemoMode {
@@ -91,259 +87,6 @@ string demo_snapshot_path(int stage_idx) {
         << setw(4) << setfill('0') << stage_idx
         << "_best.txt";
     return oss.str();
-}
-
-struct Occupancy {
-    int grid_w = 0;
-    int grid_h = 0;
-    vector<vector<int>> cells;
-
-    explicit Occupancy(const PlacementState& state) {
-        grid_w = state.gridW;
-        grid_h = state.gridH;
-        cells.assign(grid_h, vector<int>(grid_w, -1));
-    }
-
-    bool inside(int x, int y, int w, int h) const {
-        return x >= 0 && y >= 0 && x + w <= grid_w && y + h <= grid_h;
-    }
-
-    void stamp(const PlacementState& state, int node_idx, int x, int y) {
-        const Node& node = state.nodes[node_idx];
-        for (int yy = y; yy < y + node.h; ++yy) {
-            for (int xx = x; xx < x + node.w; ++xx) {
-                cells[yy][xx] = node_idx;
-            }
-        }
-    }
-
-    void unstamp(const PlacementState& state, int node_idx, int x, int y) {
-        const Node& node = state.nodes[node_idx];
-        for (int yy = y; yy < y + node.h; ++yy) {
-            for (int xx = x; xx < x + node.w; ++xx) {
-                if (cells[yy][xx] == node_idx) {
-                    cells[yy][xx] = -1;
-                }
-            }
-        }
-    }
-
-    bool can_place(const PlacementState& state, int node_idx, int x, int y) const {
-        const Node& node = state.nodes[node_idx];
-        if (!inside(x, y, node.w, node.h)) {
-            return false;
-        }
-        for (int yy = y; yy < y + node.h; ++yy) {
-            for (int xx = x; xx < x + node.w; ++xx) {
-                if (cells[yy][xx] != -1) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-};
-
-struct AppliedMove {
-    MoveType type = MoveType::RELOCATE;
-    int a = -1;
-    int b = -1;
-    int old_ax = -1;
-    int old_ay = -1;
-    int old_bx = -1;
-    int old_by = -1;
-};
-
-bool build_occupancy_from_state(const PlacementState& state, Occupancy& occ, string& err) {
-    for (int i = 0; i < static_cast<int>(state.nodes.size()); ++i) {
-        const Node& node = state.nodes[i];
-        if (node.x < 0 || node.y < 0) {
-            if (!node.fixed) {
-                continue;
-            }
-            err = "fixed node has unset location: " + node.id;
-            return false;
-        }
-        if (!occ.inside(node.x, node.y, node.w, node.h)) {
-            err = "node outside grid: " + node.id;
-            return false;
-        }
-        if (!occ.can_place(state, i, node.x, node.y)) {
-            err = "overlap while building occupancy at node: " + node.id;
-            return false;
-        }
-        occ.stamp(state, i, node.x, node.y);
-    }
-    return true;
-}
-
-vector<int> collect_movable_nodes(const PlacementState& state) {
-    vector<int> out;
-    for (int i = 0; i < static_cast<int>(state.nodes.size()); ++i) {
-        if (!state.nodes[i].fixed) {
-            out.push_back(i);
-        }
-    }
-    return out;
-}
-
-bool random_initialize_movable(PlacementState& state,
-                               Occupancy& occ,
-                               const vector<int>& movables,
-                               mt19937& rng,
-                               string& err) {
-    for (int idx : movables) {
-        state.nodes[idx].x = -1;
-        state.nodes[idx].y = -1;
-    }
-
-    for (int idx : movables) {
-        const Node& node = state.nodes[idx];
-        vector<pair<int, int>> candidates;
-        for (int y = 0; y <= occ.grid_h - node.h; ++y) {
-            for (int x = 0; x <= occ.grid_w - node.w; ++x) {
-                if (occ.can_place(state, idx, x, y)) {
-                    candidates.push_back({x, y});
-                }
-            }
-        }
-
-        if (candidates.empty()) {
-            err = "no legal initial position for movable node: " + node.id;
-            return false;
-        }
-
-        uniform_int_distribution<int> pick(0, static_cast<int>(candidates.size()) - 1);
-        const auto [x, y] = candidates[pick(rng)];
-        state.nodes[idx].x = x;
-        state.nodes[idx].y = y;
-        occ.stamp(state, idx, x, y);
-    }
-
-    return true;
-}
-
-bool sample_distinct_pair(const vector<int>& movables, mt19937& rng, int& a, int& b) {
-    if (movables.size() < 2) {
-        return false;
-    }
-    uniform_int_distribution<int> pick(0, static_cast<int>(movables.size()) - 1);
-    a = movables[pick(rng)];
-    do {
-        b = movables[pick(rng)];
-    } while (b == a);
-    return true;
-}
-
-bool apply_relocate_move(PlacementState& state,
-                         Occupancy& occ,
-                         const vector<int>& movables,
-                         mt19937& rng,
-                         AppliedMove& rec,
-                         vector<int>& moved_nodes) {
-    if (movables.empty()) {
-        return false;
-    }
-
-    uniform_int_distribution<int> pick_comp(0, static_cast<int>(movables.size()) - 1);
-    const int idx = movables[pick_comp(rng)];
-    Node& node = state.nodes[idx];
-
-    uniform_int_distribution<int> pick_x(0, occ.grid_w - node.w);
-    uniform_int_distribution<int> pick_y(0, occ.grid_h - node.h);
-    const int nx = pick_x(rng);
-    const int ny = pick_y(rng);
-
-    const int ox = node.x;
-    const int oy = node.y;
-
-    occ.unstamp(state, idx, ox, oy);
-    if (!occ.can_place(state, idx, nx, ny)) {
-        occ.stamp(state, idx, ox, oy);
-        return false;
-    }
-
-    node.x = nx;
-    node.y = ny;
-    occ.stamp(state, idx, nx, ny);
-
-    rec.type = MoveType::RELOCATE;
-    rec.a = idx;
-    rec.old_ax = ox;
-    rec.old_ay = oy;
-    moved_nodes = {idx};
-    return true;
-}
-
-bool apply_swap_move(PlacementState& state,
-                     Occupancy& occ,
-                     const vector<int>& movables,
-                     mt19937& rng,
-                     AppliedMove& rec,
-                     vector<int>& moved_nodes) {
-    int a = -1;
-    int b = -1;
-    if (!sample_distinct_pair(movables, rng, a, b)) {
-        return false;
-    }
-
-    Node& na = state.nodes[a];
-    Node& nb = state.nodes[b];
-
-    const int ax = na.x;
-    const int ay = na.y;
-    const int bx = nb.x;
-    const int by = nb.y;
-
-    occ.unstamp(state, a, ax, ay);
-    occ.unstamp(state, b, bx, by);
-
-    const bool ok_a = occ.can_place(state, a, bx, by);
-    const bool ok_b = occ.can_place(state, b, ax, ay);
-    if (!ok_a || !ok_b) {
-        occ.stamp(state, a, ax, ay);
-        occ.stamp(state, b, bx, by);
-        return false;
-    }
-
-    na.x = bx;
-    na.y = by;
-    nb.x = ax;
-    nb.y = ay;
-    occ.stamp(state, a, na.x, na.y);
-    occ.stamp(state, b, nb.x, nb.y);
-
-    rec.type = MoveType::SWAP;
-    rec.a = a;
-    rec.b = b;
-    rec.old_ax = ax;
-    rec.old_ay = ay;
-    rec.old_bx = bx;
-    rec.old_by = by;
-    moved_nodes = {a, b};
-    return true;
-}
-
-void revert_move(PlacementState& state, Occupancy& occ, const AppliedMove& rec) {
-    if (rec.type == MoveType::RELOCATE) {
-        Node& n = state.nodes[rec.a];
-        occ.unstamp(state, rec.a, n.x, n.y);
-        n.x = rec.old_ax;
-        n.y = rec.old_ay;
-        occ.stamp(state, rec.a, n.x, n.y);
-        return;
-    }
-
-    Node& a = state.nodes[rec.a];
-    Node& b = state.nodes[rec.b];
-    occ.unstamp(state, rec.a, a.x, a.y);
-    occ.unstamp(state, rec.b, b.x, b.y);
-    a.x = rec.old_ax;
-    a.y = rec.old_ay;
-    b.x = rec.old_bx;
-    b.y = rec.old_by;
-    occ.stamp(state, rec.a, a.x, a.y);
-    occ.stamp(state, rec.b, b.x, b.y);
 }
 
 string cost_mode_name(CostMode mode) {
@@ -604,41 +347,34 @@ int run_sa_place_cli(int argc, char* argv[]) {
         }
     }
 
-    PlacementState state;
-    if (!read_netlist(cfg.input_path, state)) {
-        cerr << "Failed to read input file: " << cfg.input_path << "\n";
+    PlacementDB db;
+    try {
+        db.parseFile(cfg.input_path);
+        db.randomLegalPlacement(cfg.seed);
+    } catch (const exception& e) {
+        cerr << "Failed to initialize placement DB: " << e.what() << "\n";
         return 1;
     }
 
-    const vector<int> movables = collect_movable_nodes(state);
+    const vector<int> movables = collect_movable_nodes(db);
     if (movables.empty()) {
         cerr << "No movable components found; nothing to optimize\n";
         return 1;
     }
 
-    Occupancy occ(state);
-    string err;
-    if (!build_occupancy_from_state(state, occ, err)) {
-        cerr << "Invalid initial placement state: " << err << "\n";
-        return 1;
-    }
-
     mt19937 rng(cfg.seed);
-    if (!random_initialize_movable(state, occ, movables, rng, err)) {
-        cerr << "Failed to initialize legal placement: " << err << "\n";
-        return 1;
-    }
 
-    long long current_hpwl = hpwl::total_hpwl(state);
+    long long current_hpwl = db.totalHPWL();
     const long long initial_hpwl = current_hpwl;
     long long best_hpwl = current_hpwl;
-    PlacementState best_state = state;
+    PlacementState best_state = static_cast<const PlacementState&>(db);
 
     adjacency::Adjacency adj;
     if (cfg.cost_mode == CostMode::DELTA) {
         try {
-            adj = adjacency::build_adjacency(state);
-            adjacency::validate_adjacency(state, adj);
+            const PlacementState state_snapshot = static_cast<const PlacementState&>(db);
+            adj = adjacency::build_adjacency(state_snapshot);
+            adjacency::validate_adjacency(state_snapshot, adj);
         } catch (const exception& e) {
             cerr << "Failed to build adjacency for delta mode: " << e.what() << "\n";
             return 1;
@@ -733,15 +469,15 @@ int run_sa_place_cli(int argc, char* argv[]) {
                 ++total_proposals;
 
                 const bool try_relocate = prob01(rng) < 0.5;
-                AppliedMove rec;
                 vector<int> moved_nodes;
 
-                PlacementState before = state;
+                const size_t cp = db.checkpoint();
+                PlacementState before = static_cast<const PlacementState&>(db);
                 bool legal = false;
                 if (try_relocate) {
-                    legal = apply_relocate_move(state, occ, movables, rng, rec, moved_nodes);
+                    legal = apply_random_relocate_move(db, movables, rng, moved_nodes);
                 } else {
-                    legal = apply_swap_move(state, occ, movables, rng, rec, moved_nodes);
+                    legal = apply_random_swap_move(db, movables, rng, moved_nodes);
                 }
 
                 if (!legal) {
@@ -749,15 +485,16 @@ int run_sa_place_cli(int argc, char* argv[]) {
                 }
 
                 legal_proposal_seen = true;
+                PlacementState after = static_cast<const PlacementState&>(db);
 
                 long long candidate_hpwl = current_hpwl;
                 long long delta = 0;
                 if (cfg.cost_mode == CostMode::FULL) {
-                    candidate_hpwl = hpwl::total_hpwl(state);
+                    candidate_hpwl = hpwl::total_hpwl(after);
                     delta = candidate_hpwl - current_hpwl;
                 } else {
                     try {
-                        const auto d = delta_hpwl::compute_delta_hpwl(before, state, adj, moved_nodes);
+                        const auto d = delta_hpwl::compute_delta_hpwl(before, after, adj, moved_nodes);
                         delta = d.delta;
                         candidate_hpwl = current_hpwl + delta;
                     } catch (const exception& e) {
@@ -783,10 +520,13 @@ int run_sa_place_cli(int argc, char* argv[]) {
                     }
                     if (current_hpwl < best_hpwl) {
                         best_hpwl = current_hpwl;
-                        best_state = state;
+                        best_state = after;
                     }
                 } else {
-                    revert_move(state, occ, rec);
+                    if (!db.rollbackTo(cp)) {
+                        cerr << "Failed to rollback rejected move\n";
+                        return 1;
+                    }
                 }
                 break;
             }
