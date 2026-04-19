@@ -1,0 +1,19 @@
+SA Run Log
+source: sa_place
+cost_mode: delta
+
+command_line: sa_place bench/hub_medium.txt outputs/hub_medium/seed_123/sa_out.txt 123 20 300.0 0.95 --cost delta
+temp_floor: 0.000000001000
+
+stage   temp          runtime_s     attempted   accepted    uphill      best_hpwl     curr_hpwl     mode    
+0       300.000000    0.000510      21          20          13          2369          2464          delta   
+
+Summary
+initial_hpwl: 2378
+final_hpwl: 2464
+best_hpwl: 2369
+runtime_sec: 0.000662
+accepted_moves: 20
+steps: 20
+proposals: 21
+output_file: outputs/hub_medium/seed_123/sa_out.txt

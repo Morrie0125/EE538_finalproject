@@ -1,0 +1,35 @@
+SA Run Log
+source: sa_place
+cost_mode: full
+
+command_line: sa_place bench/hub_small.txt hub_small_sa.txt 42 5000 100 0.95 --cost full
+temp_floor: 0.000000001000
+
+stage   temp          runtime_s     attempted   accepted    uphill      best_hpwl     curr_hpwl     mode    
+0       100.000000    0.001660      105         96          40          434           542           full    
+1       95.000000     0.003166      106         99          43          424           494           full    
+2       90.250000     0.004568      109         95          42          394           436           full    
+3       85.737500     0.005776      100         91          44          394           498           full    
+4       81.450625     0.006965      101         92          46          384           437           full    
+5       77.378094     0.008245      104         94          41          384           466           full    
+6       73.509189     0.009591      105         95          46          343           516           full    
+7       69.833730     0.010887      104         92          38          343           380           full    
+8       66.342043     0.012118      104         94          45          343           464           full    
+9       63.024941     0.013331      107         94          45          343           432           full    
+10      59.873694     0.014390      103         92          41          343           478           full    
+11      56.880009     0.015083      104         95          45          343           473           full    
+12      54.036009     0.015775      107         95          43          343           426           full    
+13      51.334208     0.016456      103         93          46          343           495           full    
+14      48.767498     0.017267      102         89          40          343           464           full    
+15      46.329123     0.017963      105         87          35          343           464           full    
+16      44.012667     0.018726      102         94          49          343           441           full    
+
+Summary
+initial_hpwl: 504
+final_hpwl: 441
+best_hpwl: 343
+runtime_sec: 0.018951
+accepted_moves: 1587
+steps: 1700
+proposals: 1771
+output_file: hub_small_sa.txt

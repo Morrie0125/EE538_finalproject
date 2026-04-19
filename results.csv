@@ -1,0 +1,9 @@
+bench,seed,baseline_hpwl,sa_best_hpwl,improve_pct,sa_runtime_ms
+clustered_small,42,384,244,36.46,33
+clustered_small,123,384,236,38.54,28
+clustered_medium,42,1780,1467,17.58,26
+clustered_medium,123,1780,1334,25.06,71
+hub_small,42,462,369,20.13,54
+hub_small,123,462,332,28.14,62
+hub_medium,42,2199,1802,18.05,92
+hub_medium,123,2199,1932,12.14,61

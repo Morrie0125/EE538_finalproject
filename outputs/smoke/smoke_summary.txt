@@ -1,0 +1,10 @@
+T19 Smoke Test Summary
+==========================================
+Benchmark     : hub_small.txt
+SA params     : seed=42, iters=8000, T0=300.0, alpha=0.95, cost=full
+------------------------------------------
+Baseline HPWL : 462
+SA best HPWL  : 369
+Improvement   : 93 (20.1%)
+------------------------------------------
+Result        : PASS

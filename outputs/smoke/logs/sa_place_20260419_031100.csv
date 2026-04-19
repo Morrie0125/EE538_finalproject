@@ -1,0 +1,2 @@
+stage_idx,temperature,runtime_sec,attempted_moves,accepted_moves,accepted_uphill_moves,best_hpwl_so_far,current_hpwl,cost_mode
+0,300.00000000,0.00101717,52,50,18,448,460,full

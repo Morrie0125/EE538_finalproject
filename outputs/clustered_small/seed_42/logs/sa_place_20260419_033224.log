@@ -1,0 +1,35 @@
+SA Run Log
+source: sa_place
+cost_mode: delta
+
+command_line: sa_place bench/clustered_small.txt outputs/clustered_small/seed_42/sa_out.txt 42 8000 300.0 0.95 --cost delta
+temp_floor: 0.000000001000
+
+stage   temp          runtime_s     attempted   accepted    uphill      best_hpwl     curr_hpwl     mode    
+0       300.000000    0.000682      105         99          50          312           408           delta   
+1       285.000000    0.001313      102         96          51          288           395           delta   
+2       270.750000    0.001952      102         100         56          280           380           delta   
+3       257.212500    0.002661      103         98          44          280           366           delta   
+4       244.351875    0.003766      106         98          48          280           359           delta   
+5       232.134281    0.004855      104         97          45          280           367           delta   
+6       220.527567    0.006128      105         95          43          244           348           delta   
+7       209.501189    0.007589      103         96          50          244           438           delta   
+8       199.026129    0.009215      102         95          44          244           409           delta   
+9       189.074823    0.011032      101         96          43          244           393           delta   
+10      179.621082    0.012914      103         99          52          244           450           delta   
+11      170.640028    0.015048      106         99          39          244           311           delta   
+12      162.108026    0.017413      105         98          42          244           372           delta   
+13      154.002625    0.019976      102         96          42          244           379           delta   
+14      146.302494    0.022698      102         99          49          244           356           delta   
+15      138.987369    0.026215      103         91          49          244           406           delta   
+16      132.038001    0.029081      103         93          44          244           347           delta   
+
+Summary
+initial_hpwl: 383
+final_hpwl: 347
+best_hpwl: 244
+runtime_sec: 0.029241
+accepted_moves: 1645
+steps: 1700
+proposals: 1757
+output_file: outputs/clustered_small/seed_42/sa_out.txt
