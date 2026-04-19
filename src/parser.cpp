@@ -89,27 +89,47 @@ bool read_netlist(const string& path, PlacementState& state) {
         for (int k = 0; k < n; ++k) {
             auto t = split(lines.at(i++));
 
-            if (t.size() != 5 && t.size() != 7) {
-                throw runtime_error("Invalid COMPONENT line");
-            }
             if (t[0] != "COMPONENT") {
                 throw runtime_error("Expected COMPONENT line");
             }
 
+            // Supported formats:
+            //   var-size  movable : COMPONENT <id> <w> <h> movable
+            //   var-size  fixed   : COMPONENT <id> <w> <h> fixed <x> <y>
+            //   unit-size movable : COMPONENT <id> movable          (w=h=1)
+            //   unit-size fixed   : COMPONENT <id> fixed <x> <y>   (w=h=1)
             Node node;
             node.id = t[1];
-            node.w = stoi(t[2]);
-            node.h = stoi(t[3]);
 
-            if (t[4] == "movable") {
+            // Detect format by checking if token[2] is a number (var-size) or a keyword
+            bool has_wh = (t.size() >= 3 && (t[2] != "movable" && t[2] != "fixed"));
+            size_t type_idx;  // index of movable|fixed token
+            if (has_wh) {
+                if (t.size() != 5 && t.size() != 7) {
+                    throw runtime_error("Invalid COMPONENT line (var-size)");
+                }
+                node.w = stoi(t[2]);
+                node.h = stoi(t[3]);
+                type_idx = 4;
+            } else {
+                // unit-size: w and h default to 1
+                if (t.size() != 3 && t.size() != 5) {
+                    throw runtime_error("Invalid COMPONENT line (unit-size)");
+                }
+                node.w = 1;
+                node.h = 1;
+                type_idx = 2;
+            }
+
+            if (t[type_idx] == "movable") {
                 node.fixed = false;
-            } else if (t[4] == "fixed") {
+            } else if (t[type_idx] == "fixed") {
                 node.fixed = true;
-                if (t.size() != 7) {
+                if (t.size() != type_idx + 3) {
                     throw runtime_error("Fixed component must have coordinates");
                 }
-                node.x = stoi(t[5]);
-                node.y = stoi(t[6]);
+                node.x = stoi(t[type_idx + 1]);
+                node.y = stoi(t[type_idx + 2]);
             } else {
                 throw runtime_error("Component type must be movable or fixed");
             }

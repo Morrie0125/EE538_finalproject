@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <filesystem>
+#include <sstream>
 #include "../include/demo_config.h"
 #include "../include/commands.h"
 

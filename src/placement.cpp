@@ -486,13 +486,25 @@ void PlacementDB::printPlacement() const {
     }
 }
 
-void PlacementDB::writePlacementFile(const string& filename) const {
+void PlacementDB::writePlacementFile(const string& filename,
+                                     long long cost,
+                                     const string& meta) const {
     ofstream fout(filename);
     if (!fout) {
         throw runtime_error("Cannot open output placement file: " + filename);
     }
 
     fout << "GRID " << gridW << " " << gridH << "\n\n";
+
+    if (!meta.empty()) {
+        fout << "# meta: " << meta << "\n";
+    }
+    if (cost >= 0) {
+        fout << "# cost: " << cost << "\n";
+    }
+    if (!meta.empty() || cost >= 0) {
+        fout << "\n";
+    }
 
     fout << "COMPONENTS " << comps.size() << "\n";
     for (const auto& c : comps) {
@@ -582,34 +594,44 @@ void PlacementDB::parseComponents(const vector<string>& lines, size_t& i) {
         }
         const auto t = split(lines[i]);
 
-        if (t.size() != 5 && t.size() != 7) {
-            throw runtime_error("Invalid COMPONENT line: " + lines[i]);
-        }
         if (t[0] != "COMPONENT") {
             throw runtime_error("Expected COMPONENT line: " + lines[i]);
         }
 
         Node c;
         c.id = t[1];
-        c.w = stoi(t[2]);
-        c.h = stoi(t[3]);
+        size_t type_idx = 0;
+        if (t.size() >= 3 && (t[2] == "movable" || t[2] == "fixed")) {
+            if (t.size() != 3 && t.size() != 5) {
+                throw runtime_error("Invalid COMPONENT line: " + lines[i]);
+            }
+            c.w = 1;
+            c.h = 1;
+            type_idx = 2;
+        } else if (t.size() == 5 || t.size() == 7) {
+            c.w = stoi(t[2]);
+            c.h = stoi(t[3]);
+            type_idx = 4;
+        } else {
+            throw runtime_error("Invalid COMPONENT line: " + lines[i]);
+        }
 
         if (c.w <= 0 || c.h <= 0) {
             throw runtime_error("Component size must be positive: " + c.id);
         }
 
-        if (t[4] == "movable") {
+        if (t[type_idx] == "movable") {
             c.fixed = false;
-            if (t.size() != 5) {
+            if (t.size() != type_idx + 1) {
                 throw runtime_error("Movable component should not have fixed coordinates: " + c.id);
             }
-        } else if (t[4] == "fixed") {
+        } else if (t[type_idx] == "fixed") {
             c.fixed = true;
-            if (t.size() != 7) {
+            if (t.size() != type_idx + 3) {
                 throw runtime_error("Fixed component must have coordinates: " + c.id);
             }
-            c.x = stoi(t[5]);
-            c.y = stoi(t[6]);
+            c.x = stoi(t[type_idx + 1]);
+            c.y = stoi(t[type_idx + 2]);
         } else {
             throw runtime_error("Component type must be movable or fixed: " + c.id);
         }
@@ -981,7 +1003,7 @@ bool run_placement_engine(const string& input_path,
         db.parseFile(input_path);
         db.randomLegalPlacement(seed);
         total_hpwl = db.totalHPWL();
-        db.writePlacementFile(output_path);
+        db.writePlacementFile(output_path, total_hpwl, "baseline_place");
         return true;
     } catch (...) {
         return false;
@@ -1002,7 +1024,7 @@ int run_placement_cli(int argc, char* argv[]) {
 
         const long long total_cost = db.totalHPWL();
         cout << "Total HPWL = " << total_cost << "\n";
-        db.writePlacementFile("placement_out.txt");
+        db.writePlacementFile("placement_out.txt", total_cost, "baseline_place");
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << "\n";
         return 1;
