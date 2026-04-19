@@ -4,12 +4,18 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import Rectangle
+from matplotlib.collections import LineCollection, PatchCollection
+from matplotlib.patches import Patch, Rectangle
 
 SHOW_PINS = True
 SHOW_PIN_LABELS = True
 SHOW_NETS = True
 MAX_NETS_TO_DRAW = 8   # draw only first few nets to reduce clutter
+FIXED_FACE_COLOR = "#f2a3a3"
+MOVABLE_FACE_COLOR = "none"
+FIXED_EDGE_COLOR = "#b14747"
+MOVABLE_EDGE_COLOR = "black"
+DEMO_BASE_INTERVAL_MS = 500
 
 
 def parse_file(filename):
@@ -104,6 +110,51 @@ def get_abs_pin(components, ref):
     return comp["x"] + dx, comp["y"] + dy
 
 
+def collect_net_segments(components, nets):
+    segments = []
+    for _, refs in nets[:MAX_NETS_TO_DRAW]:
+        points = []
+        for ref in refs:
+            px, py = get_abs_pin(components, ref)
+            points.append((px, py))
+
+        points.sort(key=lambda item: (item[0], item[1]))
+        for i in range(len(points) - 1):
+            x1, y1 = points[i]
+            x2, y2 = points[i + 1]
+            segments.append([(x1, y1), (x2, y2)])
+    return segments
+
+
+def make_component_patches(components, component_ids):
+    patches = []
+    for cid in component_ids:
+        comp = components[cid]
+        patches.append(Rectangle((comp["x"], comp["y"]), comp["w"], comp["h"]))
+    return patches
+
+
+def component_label_pos(comp):
+    return comp["x"] + comp["w"] / 2.0, comp["y"] + comp["h"] / 2.0
+
+
+def collect_pin_refs(components, component_ids):
+    refs = []
+    for cid in component_ids:
+        for pname in components[cid]["pins"].keys():
+            refs.append((cid, pname))
+    return refs
+
+
+def pin_offset_list(components, pin_refs):
+    out = []
+    for cid, pname in pin_refs:
+        comp = components[cid]
+        dx, dy = comp["pins"][pname]
+        out.append((comp["x"] + dx, comp["y"] + dy))
+    return out
+
+
 def draw_net_chain(ax, components, net_id, refs):
     # Convert refs to absolute pin positions
     points = []
@@ -126,7 +177,7 @@ def draw_net_chain(ax, components, net_id, refs):
     ax.text(mx + 0.15, my + 0.15, net_id, fontsize=7)
 
 
-def draw_layout(ax, grid_w, grid_h, components, nets, hpwl=None, title_suffix=""):
+def draw_layout(ax, grid_w, grid_h, components, nets, hpwl=None, title_suffix="", info_ax=None):
     ax.clear()
     ax.add_patch(Rectangle((0, 0), grid_w, grid_h, fill=False, linewidth=2))
 
@@ -134,10 +185,15 @@ def draw_layout(ax, grid_w, grid_h, components, nets, hpwl=None, title_suffix=""
         x, y = comp["x"], comp["y"]
         w, h = comp["w"], comp["h"]
         fixed = (comp["type"] == "fixed")
+        face_color = FIXED_FACE_COLOR if fixed else MOVABLE_FACE_COLOR
+        edge_color = FIXED_EDGE_COLOR if fixed else MOVABLE_EDGE_COLOR
 
         rect = Rectangle(
             (x, y), w, h,
-            fill=False,
+            fill=fixed,
+            facecolor=face_color,
+            edgecolor=edge_color,
+            alpha=0.55,
             linewidth=2,
             linestyle="-" if fixed else "--"
         )
@@ -175,17 +231,25 @@ def draw_layout(ax, grid_w, grid_h, components, nets, hpwl=None, title_suffix=""
     ax.set_ylabel("Y")
     ax.grid(True, alpha=0.3, linewidth=0.6)
 
-    hpwl_text = "HPWL: N/A" if hpwl is None else "HPWL: {0}".format(hpwl)
-    ax.text(
-        0.02,
-        0.98,
-        hpwl_text,
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        fontsize=10,
-        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "black"}
-    )
+    if info_ax is not None:
+        info_ax.clear()
+        info_ax.axis("off")
+        legend_handles = [
+            Patch(facecolor=FIXED_FACE_COLOR, edgecolor=FIXED_EDGE_COLOR, alpha=0.55, label="Fixed"),
+            Patch(facecolor="none", edgecolor=MOVABLE_EDGE_COLOR, alpha=1.0, label="Movable"),
+        ]
+        info_ax.legend(handles=legend_handles, loc="upper left")
+        hpwl_text = format_hpwl_text(hpwl, hpwl)
+        info_ax.text(
+            0.02,
+            0.78,
+            hpwl_text,
+            transform=info_ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=10,
+            bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "black"}
+        )
 
 
 def stage_index_from_path(path):
@@ -193,6 +257,16 @@ def stage_index_from_path(path):
     if not m:
         return -1
     return int(m.group(1))
+
+
+def format_hpwl_text(current_hpwl, initial_hpwl):
+    if current_hpwl is None:
+        return "HPWL: N/A"
+    if initial_hpwl is None or initial_hpwl <= 0:
+        return "HPWL: {0}".format(current_hpwl)
+
+    ratio_pct = 100.0 * float(current_hpwl) / float(initial_hpwl)
+    return "HPWL: {0} ({1:.1f}% of initial)".format(current_hpwl, ratio_pct)
 
 
 def run_demo_mode():
@@ -220,22 +294,124 @@ def run_demo_mode():
             "hpwl": hpwl,
         })
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, (ax, info_ax) = plt.subplots(
+        1,
+        2,
+        figsize=(12, 8),
+        gridspec_kw={"width_ratios": [4.0, 1.4]}
+    )
+    frame_count = len(frames)
+    interval_ms = DEMO_BASE_INTERVAL_MS
+    initial_hpwl = frames[0]["hpwl"]
+
+    first = frames[0]
+    grid_w = first["grid_w"]
+    grid_h = first["grid_h"]
+    component_ids = list(first["components"].keys())
+    fixed_flags = [first["components"][cid]["type"] == "fixed" for cid in component_ids]
+
+    ax.add_patch(Rectangle((0, 0), grid_w, grid_h, fill=False, linewidth=2))
+    ax.set_xlim(-1, grid_w + 1)
+    ax.set_ylim(-1, grid_h + 1)
+    ax.set_aspect("equal")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True, alpha=0.3, linewidth=0.6)
+
+    info_ax.axis("off")
+    legend_handles = [
+        Patch(facecolor=FIXED_FACE_COLOR, edgecolor=FIXED_EDGE_COLOR, alpha=0.55, label="Fixed"),
+        Patch(facecolor="none", edgecolor=MOVABLE_EDGE_COLOR, alpha=1.0, label="Movable"),
+    ]
+    info_ax.legend(handles=legend_handles, loc="upper left")
+
+    patches = make_component_patches(first["components"], component_ids)
+    comp_collection = PatchCollection(patches, match_original=False, linewidths=2, alpha=0.55)
+    comp_collection.set_facecolor([FIXED_FACE_COLOR if fixed else "none" for fixed in fixed_flags])
+    comp_collection.set_edgecolor([FIXED_EDGE_COLOR if fixed else MOVABLE_EDGE_COLOR for fixed in fixed_flags])
+    ax.add_collection(comp_collection)
+
+    comp_texts = []
+    for cid in component_ids:
+        cx, cy = component_label_pos(first["components"][cid])
+        comp_texts.append(ax.text(cx, cy, cid, ha="center", va="center", fontsize=9))
+
+    pin_refs = collect_pin_refs(first["components"], component_ids) if SHOW_PINS else []
+    pin_scatter = None
+    pin_texts = []
+    if SHOW_PINS:
+        pin_scatter = ax.scatter([], [], s=10, c="black", marker="o")
+        first_offsets = pin_offset_list(first["components"], pin_refs)
+        pin_scatter.set_offsets(first_offsets)
+        if SHOW_PIN_LABELS:
+            for (cid, pname), (px, py) in zip(pin_refs, first_offsets):
+                pin_texts.append(ax.text(px + 0.08, py + 0.08, "{0}.{1}".format(cid, pname), fontsize=7))
+
+    net_collection = None
+    if SHOW_NETS:
+        net_collection = LineCollection([], linewidths=1.0, colors="tab:blue", alpha=0.9)
+        net_collection.set_segments(collect_net_segments(first["components"], first["nets"]))
+        ax.add_collection(net_collection)
+
+    title_text = ax.set_title("Placement Visualization")
+    stage_text = info_ax.text(
+        0.02,
+        0.78,
+        "Stage: {0}".format(first["stage"]),
+        transform=info_ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=10,
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "black"}
+    )
+    hpwl_text = info_ax.text(
+        0.02,
+        0.66,
+        format_hpwl_text(first["hpwl"], initial_hpwl),
+        transform=info_ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=10,
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "black"}
+    )
+
+    animated_artists = [comp_collection, title_text, stage_text, hpwl_text]
+    animated_artists.extend(comp_texts)
+    if pin_scatter is not None:
+        animated_artists.append(pin_scatter)
+    animated_artists.extend(pin_texts)
+    if net_collection is not None:
+        animated_artists.append(net_collection)
+
+    for artist in animated_artists:
+        if hasattr(artist, "set_animated"):
+            artist.set_animated(True)
 
     def update(frame_idx):
         fr = frames[frame_idx]
-        draw_layout(
-            ax,
-            fr["grid_w"],
-            fr["grid_h"],
-            fr["components"],
-            fr["nets"],
-            fr["hpwl"],
-            title_suffix="Demo Stage {0}".format(fr["stage"])
-        )
-        return []
+        comps = fr["components"]
 
-    anim = FuncAnimation(fig, update, frames=len(frames), interval=500, repeat=True)
+        comp_collection.set_paths(make_component_patches(comps, component_ids))
+        for text_artist, cid in zip(comp_texts, component_ids):
+            cx, cy = component_label_pos(comps[cid])
+            text_artist.set_position((cx, cy))
+
+        if pin_scatter is not None:
+            offsets = pin_offset_list(comps, pin_refs)
+            pin_scatter.set_offsets(offsets)
+            if SHOW_PIN_LABELS:
+                for text_artist, (cid, pname), (px, py) in zip(pin_texts, pin_refs, offsets):
+                    text_artist.set_position((px + 0.08, py + 0.08))
+                    text_artist.set_text("{0}.{1}".format(cid, pname))
+
+        if net_collection is not None:
+            net_collection.set_segments(collect_net_segments(comps, fr["nets"]))
+
+        stage_text.set_text("Stage: {0}".format(fr["stage"]))
+        hpwl_text.set_text(format_hpwl_text(fr["hpwl"], initial_hpwl))
+        return animated_artists
+
+    anim = FuncAnimation(fig, update, frames=frame_count, interval=interval_ms, repeat=True, blit=True)
     _ = anim
     plt.tight_layout()
     plt.show()
@@ -257,8 +433,13 @@ def main():
         print("Failed to parse placement file: {0}".format(e))
         return
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    draw_layout(ax, grid_w, grid_h, components, nets, hpwl, title_suffix="Single Snapshot")
+    fig, (ax, info_ax) = plt.subplots(
+        1,
+        2,
+        figsize=(12, 8),
+        gridspec_kw={"width_ratios": [4.0, 1.4]}
+    )
+    draw_layout(ax, grid_w, grid_h, components, nets, hpwl, title_suffix="Single Snapshot", info_ax=info_ax)
 
     plt.tight_layout()
     plt.show()

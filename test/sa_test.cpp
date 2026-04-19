@@ -30,6 +30,7 @@ struct RangeSpec {
 struct SweepRanges {
     RangeSpec t0;
     RangeSpec alpha;
+    int steps_per_t = 200;
     int point_count = 10;
 };
 
@@ -37,8 +38,6 @@ struct SweepPoint {
     double t0 = 0.0;
     double alpha = 0.0;
 };
-
-constexpr int kFixedStepsPerT = 200;
 
 struct RunMetrics {
     string level;
@@ -885,9 +884,10 @@ bool parse_args(int argc,
                 string& results_path,
                 string& summary_path,
                 bool& use_heuristic) {
-    levels = {"easy", "mid", "hard"};
+    levels = {"easy", "mid", "hard", "large"};
     ranges.t0 = {24.0, 96.0};
     ranges.alpha = {0.86, 0.992};
+    ranges.steps_per_t = 200;
     ranges.point_count = 10;
     results_path = "sweeps/results.csv";
     summary_path = "sweeps/summary.csv";
@@ -901,10 +901,10 @@ bool parse_args(int argc,
                 return false;
             }
             const string value = argv[++i];
-            if (value == "easy" || value == "mid" || value == "hard") {
+            if (value == "easy" || value == "mid" || value == "hard" || value == "large") {
                 levels = {value};
             } else if (value == "all") {
-                levels = {"easy", "mid", "hard"};
+                levels = {"easy", "mid", "hard", "large"};
             } else {
                 cerr << "Unknown level: " << value << "\n";
                 return false;
@@ -955,6 +955,24 @@ bool parse_args(int argc,
             }
             continue;
         }
+        if (key == "--steps_per_t") {
+            if (i + 1 >= argc) {
+                cerr << "--steps_per_t requires a positive integer\n";
+                return false;
+            }
+            try {
+                size_t pos = 0;
+                const int value = stoi(argv[++i], &pos);
+                if (pos != string(argv[i]).size() || value <= 0) {
+                    throw runtime_error("invalid steps_per_t value");
+                }
+                ranges.steps_per_t = value;
+            } catch (const exception& e) {
+                cerr << e.what() << "\n";
+                return false;
+            }
+            continue;
+        }
         if (key == "--results") {
             if (i + 1 >= argc) {
                 cerr << "--results requires a path\n";
@@ -988,11 +1006,11 @@ bool parse_args(int argc,
 
 void print_usage(const char* argv0) {
     cerr << "Usage: " << argv0
-                << " [--level all|easy|mid|hard]"
+                << " [--level all|easy|mid|hard|large]"
             << " [--t0_range min,max] [--alpha_range min,max]"
-            << " [--points N]"
+                << " [--points N] [--steps_per_t N]"
          << " [--results sweeps/results.csv] [--summary sweeps/summary.csv]"
-         << " [steps_per_T is fixed at 200]"
+            << " [default steps_per_T=200]"
          << " [--use_heuristic]\n";
 }
 
@@ -1057,13 +1075,13 @@ int main(int argc, char* argv[]) {
                                                    seed,
                                                    point.t0,
                                                    point.alpha,
-                                                   kFixedStepsPerT,
+                                                   ranges.steps_per_t,
                                                    use_heuristic,
                                                    preset.sa.illegal_retry);
 
                 write_result_row(results_out, metrics);
 
-                SummaryKey key{level, point.t0, point.alpha, kFixedStepsPerT, use_heuristic};
+                SummaryKey key{level, point.t0, point.alpha, ranges.steps_per_t, use_heuristic};
                 SummaryStats& stats = summary_map[key];
                 ++stats.runs;
                 stats.sum_improvement += metrics.improvement_pct;
@@ -1083,7 +1101,7 @@ int main(int argc, char* argv[]) {
                      << " seed=" << seed
                      << " T0=" << point.t0
                      << " alpha=" << point.alpha
-                     << " steps_per_T=" << kFixedStepsPerT
+                     << " steps_per_T=" << ranges.steps_per_t
                      << ": " << e.what() << "\n";
                 return 1;
             }

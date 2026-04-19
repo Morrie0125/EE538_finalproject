@@ -17,7 +17,7 @@
     "input_path": "demo/demo_input_large.txt",
     "output_path": "demo/demo_output_large.txt",
     "seed": 12345,
-    "max_iters": 96000,
+    "max_iters": 960000,
     "t0": 240.0,
     "alpha": 0.97,
     "temp_floor": 0.001,

@@ -251,60 +251,6 @@ def plot_param_space_3d_best_cost(stats, out_dir):
     return target, fig
 
 
-def plot_param_space_3d_best_cost_html(stats, out_dir):
-    try:
-        import plotly.graph_objects as go
-    except Exception as exc:
-        raise RuntimeError(
-            "interactive 3D plot requires plotly; install with '.venv\\Scripts\\python.exe -m pip install plotly'"
-        ) from exc
-
-    x = [r["t0"] for r in stats]
-    y = [r["alpha"] for r in stats]
-    z = [r["best_cost"] for r in stats]
-    text = [
-        "T0={0:.3f}<br>alpha={1:.5f}<br>best_cost={2:.3f}<br>mode={3}".format(
-            r["t0"], r["alpha"], r["best_cost"], r["heuristic_mode"]
-        )
-        for r in stats
-    ]
-
-    fig = go.Figure(
-        data=[
-            go.Scatter3d(
-                x=x,
-                y=y,
-                z=z,
-                mode="markers",
-                marker={
-                    "size": 5,
-                    "color": z,
-                    "colorscale": "Viridis",
-                    "reversescale": True,
-                    "colorbar": {"title": "best_cost"},
-                    "opacity": 0.9,
-                },
-                text=text,
-                hovertemplate="%{text}<extra></extra>",
-            )
-        ]
-    )
-
-    fig.update_layout(
-        title="Interactive 3D Sweep: T0 / alpha / best_cost",
-        scene={
-            "xaxis_title": "T0",
-            "yaxis_title": "alpha",
-            "zaxis_title": "best_cost",
-        },
-        margin={"l": 0, "r": 0, "b": 0, "t": 48},
-    )
-
-    target = out_dir / "param_space_3d_best_cost.html"
-    fig.write_html(str(target), include_plotlyjs="cdn")
-    return target
-
-
 def print_text_summary(filtered_rows, stats, summary_rows, level_filter, fixed_steps):
     legal_count = sum(1 for r in filtered_rows if r["legality_ok"])
     legal_rate = 100.0 * legal_count / float(len(filtered_rows)) if filtered_rows else 0.0
@@ -337,7 +283,6 @@ def build_arg_parser():
     parser.add_argument("--level", default="all", choices=["all", "easy", "mid", "hard"], help="Filter rows by level")
     parser.add_argument("--steps", type=int, default=FIXED_STEPS_PER_T_DEFAULT, help="Filter steps_per_T (default: 200)")
     parser.add_argument("--topk", type=int, default=20, help="Top-k parameter sets to export/plot")
-    parser.add_argument("--interactive-3d", action="store_true", help="Also export an interactive 3D HTML plot")
     parser.add_argument("--show", action="store_true", help="Display figures interactively")
     return parser
 
@@ -362,13 +307,17 @@ def main():
     fig_paths = []
     fig_refs = []
 
+    fig_path, fig_ref = plot_topk_best(stats, out_dir, topk)
+    fig_paths.append(fig_path)
+    fig_refs.append(fig_ref)
+
     fig_path, fig_ref = plot_param_space_best(stats, out_dir)
     fig_paths.append(fig_path)
     fig_refs.append(fig_ref)
 
-    html_3d_path = None
-    if args.interactive_3d:
-        html_3d_path = plot_param_space_3d_best_cost_html(stats, out_dir)
+    fig_path, fig_ref = plot_param_space_3d_best_cost(stats, out_dir)
+    fig_paths.append(fig_path)
+    fig_refs.append(fig_ref)
 
     print_text_summary(filtered_rows, stats, summary_rows, args.level, args.steps)
     print("rank csv:")
@@ -376,9 +325,6 @@ def main():
     print("saved figures:")
     for p in fig_paths:
         print("- {0}".format(p))
-    if html_3d_path is not None:
-        print("interactive 3d html:")
-        print("- {0}".format(html_3d_path))
 
     if args.show:
         plt.show()
