@@ -37,7 +37,7 @@ Notes
 
 Build target
 - `make move_engine_test`
-- This target links both `src/test_move_engine.cpp` and `src/generator.cpp`.
+- This target links both `test/test_move_engine.cpp` and `src/generator.cpp`.
 
 Modes
 - Regression (summary + per-seed result, low noise):
@@ -95,8 +95,8 @@ Demo presets
 - `src/hpwl.cpp`: full HPWL calculation.
 - `src/adjacency.cpp`: node-to-net adjacency.
 - `src/delta_hpwl.cpp`: incremental HPWL delta.
-- `src/test_move_engine.cpp`: regression/debug move-engine tests.
-- `src/test_roundtrip.cpp`: parser-writer roundtrip test.
+- `test/test_move_engine.cpp`: regression/debug move-engine tests.
+- `test/test_roundtrip.cpp`: parser-writer roundtrip test.
 - `scripts/visualize.py`: placement visualization.
 
 ---

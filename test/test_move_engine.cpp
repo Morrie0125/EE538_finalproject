@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "../include/commands.h"
-#include "placement.cpp"
+#include "../src/placement.cpp"
 
 using namespace std;
 
