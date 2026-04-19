@@ -41,6 +41,7 @@ enum class DemoMode {
     EASY,
     MID,
     HARD,
+    LARGE,
 };
 
 struct SaConfig {
@@ -73,13 +74,18 @@ bool parse_demo_mode(const string& text, DemoMode& mode) {
         mode = DemoMode::HARD;
         return true;
     }
+    if (text == "large") {
+        mode = DemoMode::LARGE;
+        return true;
+    }
     return false;
 }
 
 string demo_mode_name(DemoMode mode) {
     if (mode == DemoMode::EASY) return "easy";
     if (mode == DemoMode::MID) return "mid";
-    return "hard";
+    if (mode == DemoMode::HARD) return "hard";
+    return "large";
 }
 
 string demo_snapshot_path(int stage_idx) {
@@ -178,7 +184,7 @@ int print_sa_usage(const char* argv0) {
          << " <input> <output> <seed> <max_iters> <t0> <alpha>"
          << " [--cost full|delta] [--moves_per_temp N] [--illegal_retry K]"
          << " [--relocate_ratio R] [--use_heuristic]\n";
-    cerr << "       " << argv0 << " --demo [easy|mid|hard]\n";
+    cerr << "       " << argv0 << " --demo [easy|mid|hard|large]\n";
     return 1;
 }
 
@@ -192,7 +198,7 @@ bool parse_sa_config(int argc, char* argv[], SaConfig& cfg) {
             if (maybe_mode.rfind("--", 0) != 0) {
                 if (!parse_demo_mode(maybe_mode, mode)) {
                     cerr << "Unknown demo mode: " << argv[i] << "\n";
-                    cerr << "Available modes: easy, mid, hard\n";
+                    cerr << "Available modes: easy, mid, hard, large\n";
                     return false;
                 }
                 ++i;

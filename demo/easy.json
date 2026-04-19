@@ -17,12 +17,12 @@
     "input_path": "demo/demo_input_easy.txt",
     "output_path": "demo/demo_output_easy.txt",
     "seed": 12345,
-    "max_iters": 600,
-    "t0": 100.0,
-    "alpha": 0.92,
+    "max_iters": 10000,
+    "t0": 53.0,
+    "alpha": 0.8,
     "temp_floor": 0.001,
     "cost_mode": "full",
-    "moves_per_temp": 80,
+    "moves_per_temp": 200,
     "illegal_retry": 5
   }
 }

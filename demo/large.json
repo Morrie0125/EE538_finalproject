@@ -1,0 +1,28 @@
+{
+  "generator": {
+    "output_path": "demo/demo_input_large.txt",
+    "grid_w": 72,
+    "grid_h": 72,
+    "num_components": 600,
+    "num_nets": 1100,
+    "seed": 20260421,
+    "fixed_chance_pct": 12,
+    "pin_min": 1,
+    "pin_max": 2,
+    "net_degree_min": 2,
+    "net_degree_max": 5,
+    "size_choices": [[1,1],[2,1],[1,2],[2,2]]
+  },
+  "sa": {
+    "input_path": "demo/demo_input_large.txt",
+    "output_path": "demo/demo_output_large.txt",
+    "seed": 12345,
+    "max_iters": 96000,
+    "t0": 240.0,
+    "alpha": 0.97,
+    "temp_floor": 0.001,
+    "cost_mode": "full",
+    "moves_per_temp": 1200,
+    "illegal_retry": 20
+  }
+}
