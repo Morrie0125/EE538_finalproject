@@ -33,6 +33,7 @@ enum class DemoMode {
     EASY,
     MID,
     HARD,
+    LARGE,
 };
 
 bool parse_demo_mode(const string& text, DemoMode& mode) {
@@ -48,6 +49,10 @@ bool parse_demo_mode(const string& text, DemoMode& mode) {
         mode = DemoMode::HARD;
         return true;
     }
+    if (text == "large") {
+        mode = DemoMode::LARGE;
+        return true;
+    }
     return false;
 }
 
@@ -58,7 +63,10 @@ string demo_mode_name(DemoMode mode) {
     if (mode == DemoMode::MID) {
         return "mid";
     }
-    return "hard";
+    if (mode == DemoMode::HARD) {
+        return "hard";
+    }
+    return "large";
 }
 
 static bool overlaps(int x1, int y1, int w1, int h1,
@@ -113,7 +121,7 @@ int run_generator_cli(int argc, char* argv[]) {
     if (argc >= 2 && string(argv[1]) == "--demo") {
         if (argc > 3) {
             cerr << "Usage:\n";
-            cerr << argv[0] << " --demo [easy|mid|hard]\n";
+            cerr << argv[0] << " --demo [easy|mid|hard|large]\n";
             return 1;
         }
 
@@ -121,7 +129,7 @@ int run_generator_cli(int argc, char* argv[]) {
         if (argc == 3) {
             if (!parse_demo_mode(argv[2], mode)) {
                 cerr << "Unknown demo mode: " << argv[2] << "\n";
-                cerr << "Available modes: easy, mid, hard\n";
+                cerr << "Available modes: easy, mid, hard, large\n";
                 return 1;
             }
         }
@@ -145,7 +153,7 @@ int run_generator_cli(int argc, char* argv[]) {
         if (!demo_mode_active) {
             cerr << "Usage:\n";
             cerr << argv[0] << " <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";
-            cerr << argv[0] << " --demo [easy|mid|hard]\n";
+            cerr << argv[0] << " --demo [easy|mid|hard|large]\n";
             cerr << "Example:\n";
             cerr << argv[0] << " case1.txt 20 20 12 18 12345\n";
             return 1;

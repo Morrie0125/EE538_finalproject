@@ -1,8 +1,11 @@
 GRID 10 10
 
+# meta: roundtrip
+# cost: 0
+
 COMPONENTS 3
-COMPONENT U0 1 2 movable 3 3
-COMPONENT U1 2 1 movable 1 0
+COMPONENT U0 1 2 movable 0 0
+COMPONENT U1 2 1 movable 0 0
 COMPONENT U2 2 1 fixed 5 1
 
 PINS 6

@@ -76,12 +76,12 @@ Logs
 - Key stage info and final summary are also printed to terminal.
 
 Demo mode
-- `generate --demo [easy|mid|hard]` creates a demo input in `demo/demo_input_<mode>.txt` from the JSON preset for that mode. Default mode is `easy`.
-- `sa_place --demo [easy|mid|hard]` internally calls `generate --demo <mode>`, uses the JSON preset for its SA defaults and output paths, and writes one best snapshot per stage to `demo/snaps/stage_<idx>_best.txt`.
+- `generate --demo [easy|mid|hard|large]` creates a demo input in `demo/demo_input_<mode>.txt` from the JSON preset for that mode. Default mode is `easy`.
+- `sa_place --demo [easy|mid|hard|large]` internally calls `generate --demo <mode>`, uses the JSON preset for its SA defaults and output paths, and writes one best snapshot per stage to `demo/snaps/stage_<idx>_best.txt`.
 - `visualize --demo` plays stage snapshots in order as an animation and overlays HPWL on the plot.
 
 Demo presets
-- The actual demo parameters now live in `demo/easy.json`, `demo/mid.json`, and `demo/hard.json`.
+- The actual demo parameters now live in `demo/easy.json`, `demo/mid.json`, `demo/hard.json`, and `demo/large.json`.
 - Each JSON file controls both the generator inputs and the SA defaults for that mode.
 - Edit those files to tune demo difficulty or runtime without touching the C++ sources.
 

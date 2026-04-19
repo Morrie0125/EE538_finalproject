@@ -78,10 +78,10 @@ int dispatch_command(const vector<string>& tokens) {
     if (tokens[0] == "help") {
         cout << "Commands:\n";
         cout << "  generate <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";
-        cout << "  generate --demo [easy|mid|hard]\n";
+        cout << "  generate --demo [easy|mid|hard|large]\n";
         cout << "  place <input_file>\n";
-        cout << "  sa_place <input> <output> <seed> <max_iters> <t0> <alpha> [--cost full|delta] [--moves_per_temp N] [--illegal_retry K] [--relocate_ratio R]\n";
-        cout << "  sa_place --demo [easy|mid|hard]\n";
+        cout << "  sa_place <input> <output> <seed> <max_iters> <t0> <alpha> [--cost full|delta] [--moves_per_temp N] [--illegal_retry K] [--no_improve_stage_limit N] [--relocate_ratio R] [--use_heuristic]\n";
+        cout << "  sa_place --demo [easy|mid|hard|large]\n";
         cout << "  cleanup\n";
         cout << "  roundtrip_test [input_file] [output_file]\n";
         cout << "  visualize [placement_file] [--demo]\n";
