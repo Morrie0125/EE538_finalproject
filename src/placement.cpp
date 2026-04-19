@@ -28,6 +28,144 @@ bool sample_distinct_pair(const vector<int>& movables, mt19937& rng, int& a, int
     return true;
 }
 
+long long net_hpwl_from_state(const PlacementState& state, const Net& net) {
+    int minX = numeric_limits<int>::max();
+    int maxX = numeric_limits<int>::min();
+    int minY = numeric_limits<int>::max();
+    int maxY = numeric_limits<int>::min();
+
+    for (const auto& ref : net.pins) {
+        const Node& n = state.nodes[ref.nodeIdx];
+        const Pin& p = n.pins[ref.pinIdx];
+        const int x = n.x + p.dx;
+        const int y = n.y + p.dy;
+        minX = min(minX, x);
+        maxX = max(maxX, x);
+        minY = min(minY, y);
+        maxY = max(maxY, y);
+    }
+
+    return static_cast<long long>(maxX - minX) + static_cast<long long>(maxY - minY);
+}
+
+int pick_node_from_high_cost_net(const PlacementDB& db,
+                                 const vector<int>& movables,
+                                 mt19937& rng) {
+    if (movables.empty()) {
+        return -1;
+    }
+
+    vector<char> is_movable(db.nodes.size(), 0);
+    for (int idx : movables) {
+        if (idx >= 0 && idx < static_cast<int>(db.nodes.size())) {
+            is_movable[idx] = 1;
+        }
+    }
+
+    vector<double> net_weights(db.nets.size(), 0.0);
+    double total_weight = 0.0;
+    for (int ni = 0; ni < static_cast<int>(db.nets.size()); ++ni) {
+        const Net& net = db.nets[ni];
+        bool has_movable = false;
+        for (const auto& ref : net.pins) {
+            if (is_movable[ref.nodeIdx]) {
+                has_movable = true;
+                break;
+            }
+        }
+        if (!has_movable) {
+            continue;
+        }
+
+        // Add a base weight of 1 so low-cost nets remain selectable.
+        const double w = static_cast<double>(max(1LL, net_hpwl_from_state(db, net)));
+        net_weights[ni] = w;
+        total_weight += w;
+    }
+
+    uniform_int_distribution<int> random_movable(0, static_cast<int>(movables.size()) - 1);
+    if (total_weight <= 0.0) {
+        return movables[random_movable(rng)];
+    }
+
+    uniform_real_distribution<double> pick_weight(0.0, total_weight);
+    double target = pick_weight(rng);
+    int selected_net = -1;
+    for (int ni = 0; ni < static_cast<int>(net_weights.size()); ++ni) {
+        if (net_weights[ni] <= 0.0) {
+            continue;
+        }
+        target -= net_weights[ni];
+        if (target <= 0.0) {
+            selected_net = ni;
+            break;
+        }
+    }
+
+    if (selected_net < 0) {
+        return movables[random_movable(rng)];
+    }
+
+    vector<char> visited(db.nodes.size(), 0);
+    vector<int> candidates;
+    for (const auto& ref : db.nets[selected_net].pins) {
+        const int node_idx = ref.nodeIdx;
+        if (!is_movable[node_idx] || visited[node_idx]) {
+            continue;
+        }
+        visited[node_idx] = 1;
+        candidates.push_back(node_idx);
+    }
+
+    if (candidates.empty()) {
+        return movables[random_movable(rng)];
+    }
+
+    uniform_int_distribution<int> pick_candidate(0, static_cast<int>(candidates.size()) - 1);
+    return candidates[pick_candidate(rng)];
+}
+
+bool try_windowed_relocate(PlacementDB& db,
+                           int idx,
+                           mt19937& rng,
+                           int local_attempts,
+                           int global_fallback_attempts) {
+    if (idx < 0 || idx >= static_cast<int>(db.nodes.size())) {
+        return false;
+    }
+
+    const Node& node = db.nodes[idx];
+    if (node.x < 0 || node.y < 0) {
+        return false;
+    }
+
+    const int local_radius_x = max(2, node.w * 2);
+    const int local_radius_y = max(2, node.h * 2);
+    const int min_x = max(0, node.x - local_radius_x);
+    const int max_x = min(db.gridW - node.w, node.x + local_radius_x);
+    const int min_y = max(0, node.y - local_radius_y);
+    const int max_y = min(db.gridH - node.h, node.y + local_radius_y);
+
+    if (min_x <= max_x && min_y <= max_y) {
+        uniform_int_distribution<int> pick_x(min_x, max_x);
+        uniform_int_distribution<int> pick_y(min_y, max_y);
+        for (int i = 0; i < local_attempts; ++i) {
+            if (db.moveComponent(idx, pick_x(rng), pick_y(rng))) {
+                return true;
+            }
+        }
+    }
+
+    uniform_int_distribution<int> pick_x(0, db.gridW - node.w);
+    uniform_int_distribution<int> pick_y(0, db.gridH - node.h);
+    for (int i = 0; i < global_fallback_attempts; ++i) {
+        if (db.moveComponent(idx, pick_x(rng), pick_y(rng))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 PlacementDB::PlacementDB()
@@ -757,6 +895,63 @@ bool apply_random_swap_move(PlacementDB& db,
 
     moved_nodes = {a, b};
     return true;
+}
+
+bool apply_heuristic_relocate_move(PlacementDB& db,
+                                   const vector<int>& movables,
+                                   mt19937& rng,
+                                   vector<int>& moved_nodes) {
+    if (movables.empty()) {
+        return false;
+    }
+
+    const int idx = pick_node_from_high_cost_net(db, movables, rng);
+    if (idx < 0) {
+        return false;
+    }
+
+    if (!try_windowed_relocate(db, idx, rng, 8, 3)) {
+        return false;
+    }
+
+    moved_nodes = {idx};
+    return true;
+}
+
+bool apply_heuristic_swap_move(PlacementDB& db,
+                               const vector<int>& movables,
+                               mt19937& rng,
+                               vector<int>& moved_nodes) {
+    if (movables.size() < 2) {
+        return false;
+    }
+
+    const int a = pick_node_from_high_cost_net(db, movables, rng);
+    if (a < 0) {
+        return false;
+    }
+
+    vector<int> candidates;
+    candidates.reserve(movables.size());
+    for (int idx : movables) {
+        if (idx != a) {
+            candidates.push_back(idx);
+        }
+    }
+    if (candidates.empty()) {
+        return false;
+    }
+
+    shuffle(candidates.begin(), candidates.end(), rng);
+    const int max_trials = min(static_cast<int>(candidates.size()), 8);
+    for (int i = 0; i < max_trials; ++i) {
+        const int b = candidates[i];
+        if (db.swapComponents(a, b)) {
+            moved_nodes = {a, b};
+            return true;
+        }
+    }
+    return false;
 }
 
 bool run_placement_engine(const string& input_path,

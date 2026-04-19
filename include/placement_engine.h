@@ -90,6 +90,14 @@ bool apply_random_swap_move(PlacementDB& db,
                             const std::vector<int>& movables,
                             std::mt19937& rng,
                             std::vector<int>& moved_nodes);
+bool apply_heuristic_relocate_move(PlacementDB& db,
+                                   const std::vector<int>& movables,
+                                   std::mt19937& rng,
+                                   std::vector<int>& moved_nodes);
+bool apply_heuristic_swap_move(PlacementDB& db,
+                               const std::vector<int>& movables,
+                               std::mt19937& rng,
+                               std::vector<int>& moved_nodes);
 
 // Runs random legal placement on an input netlist and writes placement output.
 // Returns true on success and stores the final total HPWL in total_hpwl.

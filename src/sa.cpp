@@ -55,6 +55,7 @@ struct SaConfig {
     int moves_per_temp = 100;
     int illegal_retry = 3;
     double relocate_ratio = 0.5;  // API placeholder; currently not used for move sampling.
+    bool use_heuristic = false;
     bool demo_mode = false;
     string demo_mode_name = "easy";
 };
@@ -176,23 +177,39 @@ int print_sa_usage(const char* argv0) {
     cerr << "Usage: " << argv0
          << " <input> <output> <seed> <max_iters> <t0> <alpha>"
          << " [--cost full|delta] [--moves_per_temp N] [--illegal_retry K]"
-         << " [--relocate_ratio R]\n";
+         << " [--relocate_ratio R] [--use_heuristic]\n";
     cerr << "       " << argv0 << " --demo [easy|mid|hard]\n";
     return 1;
 }
 
 bool parse_sa_config(int argc, char* argv[], SaConfig& cfg) {
     if (argc >= 2 && string(argv[1]) == "--demo") {
-        if (argc > 3) {
-            cerr << "Demo mode accepts only: sa_place --demo [easy|mid|hard]\n";
-            return false;
-        }
         DemoMode mode = DemoMode::EASY;
-        if (argc == 3 && !parse_demo_mode(argv[2], mode)) {
-            cerr << "Unknown demo mode: " << argv[2] << "\n";
-            cerr << "Available modes: easy, mid, hard\n";
+
+        int i = 2;
+        if (i < argc) {
+            const string maybe_mode = argv[i];
+            if (maybe_mode.rfind("--", 0) != 0) {
+                if (!parse_demo_mode(maybe_mode, mode)) {
+                    cerr << "Unknown demo mode: " << argv[i] << "\n";
+                    cerr << "Available modes: easy, mid, hard\n";
+                    return false;
+                }
+                ++i;
+            }
+        }
+
+        while (i < argc) {
+            const string key = argv[i];
+            if (key == "--use_heuristic") {
+                cfg.use_heuristic = true;
+                ++i;
+                continue;
+            }
+            cerr << "Unknown option in demo mode: " << key << "\n";
             return false;
         }
+
         DemoPreset preset;
         string error;
         if (!load_demo_preset(demo_mode_name(mode), preset, error)) {
@@ -309,6 +326,12 @@ bool parse_sa_config(int argc, char* argv[], SaConfig& cfg) {
                 return false;
             }
             i += 2;
+            continue;
+        }
+
+        if (key == "--use_heuristic") {
+            cfg.use_heuristic = true;
+            ++i;
             continue;
         }
 
@@ -475,9 +498,13 @@ int run_sa_place_cli(int argc, char* argv[]) {
                 PlacementState before = static_cast<const PlacementState&>(db);
                 bool legal = false;
                 if (try_relocate) {
-                    legal = apply_random_relocate_move(db, movables, rng, moved_nodes);
+                    legal = cfg.use_heuristic
+                                ? apply_heuristic_relocate_move(db, movables, rng, moved_nodes)
+                                : apply_random_relocate_move(db, movables, rng, moved_nodes);
                 } else {
-                    legal = apply_random_swap_move(db, movables, rng, moved_nodes);
+                    legal = cfg.use_heuristic
+                                ? apply_heuristic_swap_move(db, movables, rng, moved_nodes)
+                                : apply_random_swap_move(db, movables, rng, moved_nodes);
                 }
 
                 if (!legal) {
