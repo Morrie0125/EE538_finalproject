@@ -294,6 +294,22 @@ def run_demo_mode():
             "hpwl": hpwl,
         })
 
+    filtered_frames = []
+    last_hpwl = None
+    for idx, fr in enumerate(frames):
+        if idx == 0 or fr["hpwl"] != last_hpwl:
+            filtered_frames.append(fr)
+            last_hpwl = fr["hpwl"]
+
+    if not filtered_frames:
+        print("No valid demo frames found after filtering.")
+        return
+
+    skipped_count = len(frames) - len(filtered_frames)
+    frames = filtered_frames
+    if skipped_count > 0:
+        print("Skipped {0} unchanged stage snapshots (same HPWL).".format(skipped_count))
+
     fig, (ax, info_ax) = plt.subplots(
         1,
         2,

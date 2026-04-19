@@ -54,6 +54,7 @@ struct SaConfig {
     double temp_floor = 1e-9;
     CostMode cost_mode = CostMode::FULL;
     int moves_per_temp = 100;
+    int no_improve_stage_limit = 10;
     int illegal_retry = 3;
     double relocate_ratio = 0.5;  // API placeholder; currently not used for move sampling.
     bool use_heuristic = false;
@@ -183,7 +184,7 @@ int print_sa_usage(const char* argv0) {
     cerr << "Usage: " << argv0
          << " <input> <output> <seed> <max_iters> <t0> <alpha>"
          << " [--cost full|delta] [--moves_per_temp N] [--illegal_retry K]"
-         << " [--relocate_ratio R] [--use_heuristic]\n";
+         << " [--no_improve_stage_limit N] [--relocate_ratio R] [--use_heuristic]\n";
     cerr << "       " << argv0 << " --demo [easy|mid|hard|large]\n";
     return 1;
 }
@@ -210,6 +211,18 @@ bool parse_sa_config(int argc, char* argv[], SaConfig& cfg) {
             if (key == "--use_heuristic") {
                 cfg.use_heuristic = true;
                 ++i;
+                continue;
+            }
+            if (key == "--no_improve_stage_limit") {
+                if (i + 1 >= argc) {
+                    cerr << "--no_improve_stage_limit requires a value\n";
+                    return false;
+                }
+                if (!parse_int(argv[i + 1], cfg.no_improve_stage_limit) || cfg.no_improve_stage_limit <= 0) {
+                    cerr << "--no_improve_stage_limit must be a positive integer\n";
+                    return false;
+                }
+                i += 2;
                 continue;
             }
             cerr << "Unknown option in demo mode: " << key << "\n";
@@ -302,6 +315,19 @@ bool parse_sa_config(int argc, char* argv[], SaConfig& cfg) {
             }
             if (!parse_int(argv[i + 1], cfg.illegal_retry) || cfg.illegal_retry <= 0) {
                 cerr << "--illegal_retry must be a positive integer\n";
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+
+        if (key == "--no_improve_stage_limit") {
+            if (i + 1 >= argc) {
+                cerr << "--no_improve_stage_limit requires a value\n";
+                return false;
+            }
+            if (!parse_int(argv[i + 1], cfg.no_improve_stage_limit) || cfg.no_improve_stage_limit <= 0) {
+                cerr << "--no_improve_stage_limit must be a positive integer\n";
                 return false;
             }
             i += 2;
@@ -430,6 +456,8 @@ int run_sa_place_cli(int argc, char* argv[]) {
     int total_steps = 0;
     int total_proposals = 0;
     int total_accepted = 0;
+    int no_improve_stages = 0;
+    string termination_reason;
 
     const auto run_start = chrono::steady_clock::now();
 
@@ -480,6 +508,10 @@ int run_sa_place_cli(int argc, char* argv[]) {
 
     while (total_steps < cfg.max_iters) {
         if (temp < cfg.temp_floor) {
+            ostringstream reason;
+            reason << "temperature below floor (temp=" << fixed << setprecision(6) << temp
+                   << ", floor=" << cfg.temp_floor << ")";
+            termination_reason = reason.str();
             break;
         }
 
@@ -490,6 +522,7 @@ int run_sa_place_cli(int argc, char* argv[]) {
 
         const int step_total = min(cfg.moves_per_temp, cfg.max_iters - total_steps);
         int stage_steps = 0;
+        bool stage_improved = false;
         print_progress(stage_idx + 1, 0, step_total, best_hpwl, 0.0);
         while (stage_steps < cfg.moves_per_temp && total_steps < cfg.max_iters) {
             bool legal_proposal_seen = false;
@@ -554,6 +587,7 @@ int run_sa_place_cli(int argc, char* argv[]) {
                     if (current_hpwl < best_hpwl) {
                         best_hpwl = current_hpwl;
                         best_state = after;
+                        stage_improved = true;
                     }
                 } else {
                     if (!db.rollbackTo(cp)) {
@@ -592,8 +626,27 @@ int run_sa_place_cli(int argc, char* argv[]) {
             }
         }
 
-        temp *= cfg.alpha;
+        if (stage_improved) {
+            no_improve_stages = 0;
+        } else {
+            ++no_improve_stages;
+        }
+
         ++stage_idx;
+        if (no_improve_stages >= cfg.no_improve_stage_limit) {
+            termination_reason = "no improvement for " + to_string(cfg.no_improve_stage_limit) + " consecutive stages";
+            break;
+        }
+
+        temp *= cfg.alpha;
+    }
+
+    if (termination_reason.empty()) {
+        if (total_steps >= cfg.max_iters) {
+            termination_reason = "max_iters reached (" + to_string(cfg.max_iters) + ")";
+        } else {
+            termination_reason = "loop ended";
+        }
     }
 
     if (!write_placement(cfg.output_path, best_state, best_hpwl, "sa_place_best")) {
@@ -615,6 +668,7 @@ int run_sa_place_cli(int argc, char* argv[]) {
     if (progress_started) {
         print_progress(stage_idx, 1, 1, best_hpwl, total_runtime_sec, true);
     }
+    cout << "SA stop reason: " << termination_reason << "\n";
     cout << "SA done: best=" << best_hpwl
          << " runtime=" << fixed << setprecision(3) << total_runtime_sec << "s\n";
 
