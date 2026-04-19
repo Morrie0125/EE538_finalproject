@@ -1,5 +1,9 @@
 import sys
+import re
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Rectangle
 
 SHOW_PINS = True
@@ -10,7 +14,19 @@ MAX_NETS_TO_DRAW = 8   # draw only first few nets to reduce clutter
 
 def parse_file(filename):
     with open(filename, "r") as f:
-        lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+        raw_lines = [line.strip() for line in f if line.strip()]
+
+    lines = []
+    hpwl = None
+    for line in raw_lines:
+        if line.startswith("#"):
+            if line.startswith("# cost:"):
+                try:
+                    hpwl = int(line.split(":", 1)[1].strip())
+                except ValueError:
+                    hpwl = None
+            continue
+        lines.append(line)
 
     grid_w = grid_h = None
     components = {}
@@ -35,6 +51,11 @@ def parse_file(filename):
                 w = int(t[2])
                 h = int(t[3])
                 ctype = t[4]
+                if len(t) < 7:
+                    raise ValueError(
+                        "Component '{0}' has no coordinates. "
+                        "Please visualize a placement output, not a raw netlist.".format(cid)
+                    )
                 x = int(t[5])
                 y = int(t[6])
                 components[cid] = {
@@ -73,7 +94,7 @@ def parse_file(filename):
         else:
             i += 1
 
-    return grid_w, grid_h, components, nets
+    return grid_w, grid_h, components, nets, hpwl
 
 
 def get_abs_pin(components, ref):
@@ -105,20 +126,10 @@ def draw_net_chain(ax, components, net_id, refs):
     ax.text(mx + 0.15, my + 0.15, net_id, fontsize=7)
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 visualize.py placement_out.txt")
-        return
-
-    filename = sys.argv[1]
-    grid_w, grid_h, components, nets = parse_file(filename)
-
-    fig, ax = plt.subplots(figsize=(10, 8))
-
-    # draw grid boundary
+def draw_layout(ax, grid_w, grid_h, components, nets, hpwl=None, title_suffix=""):
+    ax.clear()
     ax.add_patch(Rectangle((0, 0), grid_w, grid_h, fill=False, linewidth=2))
 
-    # draw components and pins
     for cid, comp in components.items():
         x, y = comp["x"], comp["y"]
         w, h = comp["w"], comp["h"]
@@ -147,9 +158,8 @@ def main():
                 py = y + dy
                 ax.plot(px, py, marker="o", markersize=3)
                 if SHOW_PIN_LABELS:
-                    ax.text(px + 0.08, py + 0.08, f"{cid}.{pname}", fontsize=7)
+                    ax.text(px + 0.08, py + 0.08, "{0}.{1}".format(cid, pname), fontsize=7)
 
-    # draw nets as pin-to-pin chain
     if SHOW_NETS:
         for net_id, refs in nets[:MAX_NETS_TO_DRAW]:
             draw_net_chain(ax, components, net_id, refs)
@@ -157,10 +167,98 @@ def main():
     ax.set_xlim(-1, grid_w + 1)
     ax.set_ylim(-1, grid_h + 1)
     ax.set_aspect("equal")
-    ax.set_title("Placement Visualization (Pin-to-Pin Nets)")
+    base_title = "Placement Visualization"
+    if title_suffix:
+        base_title += " - " + title_suffix
+    ax.set_title(base_title)
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.grid(True, alpha=0.3, linewidth=0.6)
+
+    hpwl_text = "HPWL: N/A" if hpwl is None else "HPWL: {0}".format(hpwl)
+    ax.text(
+        0.02,
+        0.98,
+        hpwl_text,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=10,
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "black"}
+    )
+
+
+def stage_index_from_path(path):
+    m = re.search(r"stage_(\d+)_best", path.name)
+    if not m:
+        return -1
+    return int(m.group(1))
+
+
+def run_demo_mode():
+    snap_dir = Path("demo") / "snaps"
+    if not snap_dir.exists():
+        print("Demo snapshots not found: {0}".format(snap_dir))
+        print("Run: sa_place ... --demo first.")
+        return
+
+    files = sorted(snap_dir.glob("stage_*_best.txt"), key=stage_index_from_path)
+    if not files:
+        print("No demo snapshots found in {0}".format(snap_dir))
+        print("Run: sa_place ... --demo first.")
+        return
+
+    frames = []
+    for p in files:
+        gw, gh, comps, nets, hpwl = parse_file(str(p))
+        frames.append({
+            "stage": stage_index_from_path(p),
+            "grid_w": gw,
+            "grid_h": gh,
+            "components": comps,
+            "nets": nets,
+            "hpwl": hpwl,
+        })
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    def update(frame_idx):
+        fr = frames[frame_idx]
+        draw_layout(
+            ax,
+            fr["grid_w"],
+            fr["grid_h"],
+            fr["components"],
+            fr["nets"],
+            fr["hpwl"],
+            title_suffix="Demo Stage {0}".format(fr["stage"])
+        )
+        return []
+
+    anim = FuncAnimation(fig, update, frames=len(frames), interval=500, repeat=True)
+    _ = anim
+    plt.tight_layout()
+    plt.show()
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python3 visualize.py [placement_out.txt|--demo]")
+        return
+
+    if sys.argv[1] == "--demo":
+        run_demo_mode()
+        return
+
+    filename = sys.argv[1]
+    try:
+        grid_w, grid_h, components, nets, hpwl = parse_file(filename)
+    except Exception as e:
+        print("Failed to parse placement file: {0}".format(e))
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    draw_layout(ax, grid_w, grid_h, components, nets, hpwl, title_suffix="Single Snapshot")
 
     plt.tight_layout()
     plt.show()

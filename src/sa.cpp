@@ -1,15 +1,27 @@
 #include <algorithm>
 #include <cmath>
 #include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <random>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include "../include/adjacency.h"
 #include "../include/commands.h"
+#include "../include/demo_config.h"
 #include "../include/delta_hpwl.h"
 #include "../include/hpwl_engine.h"
 #include "../include/io_engine.h"
@@ -29,6 +41,12 @@ enum class MoveType {
     SWAP
 };
 
+enum class DemoMode {
+    EASY,
+    MID,
+    HARD,
+};
+
 struct SaConfig {
     string input_path;
     string output_path;
@@ -41,7 +59,39 @@ struct SaConfig {
     int moves_per_temp = 100;
     int illegal_retry = 3;
     double relocate_ratio = 0.5;  // API placeholder; currently not used for move sampling.
+    bool demo_mode = false;
+    string demo_mode_name = "easy";
 };
+
+bool parse_demo_mode(const string& text, DemoMode& mode) {
+    if (text == "easy") {
+        mode = DemoMode::EASY;
+        return true;
+    }
+    if (text == "mid") {
+        mode = DemoMode::MID;
+        return true;
+    }
+    if (text == "hard") {
+        mode = DemoMode::HARD;
+        return true;
+    }
+    return false;
+}
+
+string demo_mode_name(DemoMode mode) {
+    if (mode == DemoMode::EASY) return "easy";
+    if (mode == DemoMode::MID) return "mid";
+    return "hard";
+}
+
+string demo_snapshot_path(int stage_idx) {
+    ostringstream oss;
+    oss << "demo/snaps/stage_"
+        << setw(4) << setfill('0') << stage_idx
+        << "_best.txt";
+    return oss.str();
+}
 
 struct Occupancy {
     int grid_w = 0;
@@ -300,6 +350,55 @@ string cost_mode_name(CostMode mode) {
     return mode == CostMode::FULL ? "full" : "delta";
 }
 
+string pad_right(string text, size_t width) {
+    if (text.size() < width) {
+        text.append(width - text.size(), ' ');
+    }
+    return text;
+}
+
+string make_progress_line(const string& label, int current, int total, int bar_width = 24) {
+    const int safe_total = max(1, total);
+    const int clamped_current = max(0, min(current, safe_total));
+    const int filled = static_cast<int>((1LL * clamped_current * bar_width) / safe_total);
+
+    string line = label + " [";
+    line.append(static_cast<size_t>(filled), '#');
+    line.append(static_cast<size_t>(bar_width - filled), '.');
+    line += "] ";
+    line += to_string(clamped_current);
+    line += "/";
+    line += to_string(safe_total);
+    return line;
+}
+
+bool supports_ansi_cursor_control() {
+#ifdef _WIN32
+    if (_isatty(_fileno(stdout)) == 0) {
+        return false;
+    }
+
+    HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (handle == INVALID_HANDLE_VALUE || handle == nullptr) {
+        return false;
+    }
+
+    DWORD mode = 0;
+    if (GetConsoleMode(handle, &mode) == 0) {
+        return false;
+    }
+
+    if ((mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0) {
+        if (SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0) {
+            return false;
+        }
+    }
+    return true;
+#else
+    return isatty(fileno(stdout)) != 0;
+#endif
+}
+
 bool parse_int(const string& text, int& value) {
     try {
         size_t p = 0;
@@ -335,10 +434,43 @@ int print_sa_usage(const char* argv0) {
          << " <input> <output> <seed> <max_iters> <t0> <alpha>"
          << " [--cost full|delta] [--moves_per_temp N] [--illegal_retry K]"
          << " [--relocate_ratio R]\n";
+    cerr << "       " << argv0 << " --demo [easy|mid|hard]\n";
     return 1;
 }
 
 bool parse_sa_config(int argc, char* argv[], SaConfig& cfg) {
+    if (argc >= 2 && string(argv[1]) == "--demo") {
+        if (argc > 3) {
+            cerr << "Demo mode accepts only: sa_place --demo [easy|mid|hard]\n";
+            return false;
+        }
+        DemoMode mode = DemoMode::EASY;
+        if (argc == 3 && !parse_demo_mode(argv[2], mode)) {
+            cerr << "Unknown demo mode: " << argv[2] << "\n";
+            cerr << "Available modes: easy, mid, hard\n";
+            return false;
+        }
+        DemoPreset preset;
+        string error;
+        if (!load_demo_preset(demo_mode_name(mode), preset, error)) {
+            cerr << "Failed to load demo config: " << error << "\n";
+            return false;
+        }
+        cfg.demo_mode = true;
+        cfg.demo_mode_name = preset.mode_name;
+        cfg.input_path = preset.sa.input_path;
+        cfg.output_path = preset.sa.output_path;
+        cfg.seed = preset.sa.seed;
+        cfg.max_iters = preset.sa.max_iters;
+        cfg.t0 = preset.sa.t0;
+        cfg.alpha = preset.sa.alpha;
+        cfg.temp_floor = preset.sa.temp_floor;
+        cfg.cost_mode = preset.sa.cost_mode == "delta" ? CostMode::DELTA : CostMode::FULL;
+        cfg.moves_per_temp = preset.sa.moves_per_temp;
+        cfg.illegal_retry = preset.sa.illegal_retry;
+        return true;
+    }
+
     if (argc < 7) {
         return false;
     }
@@ -458,6 +590,20 @@ int run_sa_place_cli(int argc, char* argv[]) {
         cli_args.push_back(argv[i]);
     }
 
+    if (cfg.demo_mode) {
+        vector<string> gen_args = {"generate", "--demo", cfg.demo_mode_name};
+        vector<char*> gen_argv;
+        gen_argv.reserve(gen_args.size());
+        for (auto& s : gen_args) {
+            gen_argv.push_back(const_cast<char*>(s.c_str()));
+        }
+        const int gen_rc = run_generator_cli(static_cast<int>(gen_argv.size()), gen_argv.data());
+        if (gen_rc != 0) {
+            cerr << "Failed to generate demo input for sa_place --demo\n";
+            return gen_rc;
+        }
+    }
+
     PlacementState state;
     if (!read_netlist(cfg.input_path, state)) {
         cerr << "Failed to read input file: " << cfg.input_path << "\n";
@@ -505,6 +651,16 @@ int run_sa_place_cli(int argc, char* argv[]) {
         return 1;
     }
 
+    if (cfg.demo_mode) {
+        std::error_code ec;
+        filesystem::remove_all("demo/snaps", ec);
+        filesystem::create_directories("demo/snaps", ec);
+        if (ec) {
+            cerr << "Failed to prepare demo/snaps: " << ec.message() << "\n";
+            return 1;
+        }
+    }
+
     uniform_real_distribution<double> prob01(0.0, 1.0);
     int total_steps = 0;
     int total_proposals = 0;
@@ -514,6 +670,48 @@ int run_sa_place_cli(int argc, char* argv[]) {
 
     double temp = cfg.t0;
     int stage_idx = 0;
+    const int stage_total_budget = (cfg.max_iters + cfg.moves_per_temp - 1) / cfg.moves_per_temp;
+    bool progress_started = false;
+    const char* two_line_env = getenv("SA_TWO_LINE_PROGRESS");
+    const bool request_two_line = (two_line_env != nullptr && string(two_line_env) == "1");
+    const bool ansi_progress = request_two_line && supports_ansi_cursor_control();
+
+    auto print_progress = [&](int stage_now,
+                              int step_now,
+                              int step_total,
+                              long long best_now,
+                              double runtime_now,
+                              bool finish_output = false) {
+        ostringstream info;
+        info << "best=" << best_now << " runtime=" << fixed << setprecision(3) << runtime_now << "s";
+
+        const string stage_line = pad_right(make_progress_line("stage", stage_now, stage_total_budget) + " " + info.str(), 120);
+        const string step_line = pad_right(make_progress_line("step ", step_now, step_total), 120);
+
+        if (!ansi_progress) {
+            const string compact = pad_right(stage_line, 130);
+            cout << "\r" << compact;
+            if (finish_output) {
+                cout << "\n";
+            }
+            cout << flush;
+            return;
+        }
+
+        if (!progress_started) {
+            cout << stage_line << "\n" << step_line;
+            progress_started = true;
+        } else {
+            cout << "\r" << stage_line << "\n\r" << step_line;
+        }
+
+        if (finish_output) {
+            cout << "\n";
+        } else {
+            cout << "\x1b[2A";
+        }
+        cout << flush;
+    };
 
     while (total_steps < cfg.max_iters) {
         if (temp < cfg.temp_floor) {
@@ -525,7 +723,9 @@ int run_sa_place_cli(int argc, char* argv[]) {
         stage.temperature = temp;
         stage.cost_mode = cost_mode_name(cfg.cost_mode);
 
+        const int step_total = min(cfg.moves_per_temp, cfg.max_iters - total_steps);
         int stage_steps = 0;
+        print_progress(stage_idx + 1, 0, step_total, best_hpwl, 0.0);
         while (stage_steps < cfg.moves_per_temp && total_steps < cfg.max_iters) {
             bool legal_proposal_seen = false;
             for (int retry = 0; retry < cfg.illegal_retry; ++retry) {
@@ -597,6 +797,10 @@ int run_sa_place_cli(int argc, char* argv[]) {
 
             ++total_steps;
             ++stage_steps;
+
+            const auto progress_now = chrono::steady_clock::now();
+            const double elapsed = chrono::duration<double>(progress_now - run_start).count();
+            print_progress(stage_idx + 1, stage_steps, step_total, best_hpwl, elapsed);
         }
 
         const auto stage_end = chrono::steady_clock::now();
@@ -604,6 +808,16 @@ int run_sa_place_cli(int argc, char* argv[]) {
         stage.current_hpwl = current_hpwl;
         stage.best_hpwl_so_far = best_hpwl;
         logger.log_stage(stage);
+
+        if (cfg.demo_mode) {
+            const string snap_path = demo_snapshot_path(stage_idx);
+            ostringstream meta;
+            meta << "sa_demo_stage=" << stage_idx;
+            if (!write_placement(snap_path, best_state, best_hpwl, meta.str())) {
+                cerr << "Failed to write demo snapshot: " << snap_path << "\n";
+                return 1;
+            }
+        }
 
         temp *= cfg.alpha;
         ++stage_idx;
@@ -625,14 +839,11 @@ int run_sa_place_cli(int argc, char* argv[]) {
                        total_proposals,
                        cfg.output_path);
 
-    cout << "SA summary: initial_hpwl=" << initial_hpwl
-         << " final_hpwl=" << current_hpwl
-         << " best_hpwl=" << best_hpwl
-         << " runtime_sec=" << total_runtime_sec
-         << " accepted_moves=" << total_accepted
-         << " steps=" << total_steps
-         << " proposals=" << total_proposals
-         << "\n";
+    if (progress_started) {
+        print_progress(stage_idx, 1, 1, best_hpwl, total_runtime_sec, true);
+    }
+    cout << "SA done: best=" << best_hpwl
+         << " runtime=" << fixed << setprecision(3) << total_runtime_sec << "s\n";
 
     return 0;
 }

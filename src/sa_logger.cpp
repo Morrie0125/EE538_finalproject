@@ -151,15 +151,6 @@ void SaRunLogger::log_stage(const SaStageLogEntry& e) {
              << setw(8) << e.cost_mode
              << "\n";
 
-    cout << "[SA][stage " << e.stage_idx << "]"
-         << " T=" << fixed << setprecision(6) << e.temperature
-         << " attempted=" << e.attempted_moves
-         << " accepted=" << e.accepted_moves
-         << " uphill=" << e.accepted_uphill_moves
-         << " curr=" << e.current_hpwl
-         << " best=" << e.best_hpwl_so_far
-         << " mode=" << e.cost_mode
-         << "\n";
 }
 
 void SaRunLogger::log_summary(long long initial_hpwl,

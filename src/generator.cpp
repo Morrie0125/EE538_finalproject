@@ -5,6 +5,8 @@
 #include <random>
 #include <unordered_set>
 #include <algorithm>
+#include <filesystem>
+#include "../include/demo_config.h"
 #include "../include/commands.h"
 
 using namespace std;
@@ -26,6 +28,38 @@ struct GenNet {
     string id;
     vector<pair<int,int>> refs; // (component index, pin index)
 };
+
+enum class DemoMode {
+    EASY,
+    MID,
+    HARD,
+};
+
+bool parse_demo_mode(const string& text, DemoMode& mode) {
+    if (text == "easy") {
+        mode = DemoMode::EASY;
+        return true;
+    }
+    if (text == "mid") {
+        mode = DemoMode::MID;
+        return true;
+    }
+    if (text == "hard") {
+        mode = DemoMode::HARD;
+        return true;
+    }
+    return false;
+}
+
+string demo_mode_name(DemoMode mode) {
+    if (mode == DemoMode::EASY) {
+        return "easy";
+    }
+    if (mode == DemoMode::MID) {
+        return "mid";
+    }
+    return "hard";
+}
 
 static bool overlaps(int x1, int y1, int w1, int h1,
                      int x2, int y2, int w2, int h2) {
@@ -50,21 +84,108 @@ static bool canPlaceFixed(const vector<GenComponent>& comps, int idx,
     return true;
 }
 
+string render_progress_bar(const string& label, int current, int total, int width = 24) {
+    if (total <= 0) {
+        total = 1;
+    }
+    current = max(0, min(current, total));
+    const int filled = static_cast<int>((1.0 * current * width) / total);
+    string bar = "[";
+    bar.append(filled, '#');
+    bar.append(width - filled, '.');
+    bar += "]";
+    ostringstream oss;
+    oss << label << " " << bar << " " << current << "/" << total;
+    return oss.str();
+}
+
+void print_progress_line(const string& label, int current, int total, bool done = false) {
+    cout << '\r' << render_progress_bar(label, current, total) << flush;
+    if (done) {
+        cout << '\n';
+    }
+}
+
 int run_generator_cli(int argc, char* argv[]) {
-    if (argc < 7) {
-        cerr << "Usage:\n";
-        cerr << argv[0] << " <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";
-        cerr << "Example:\n";
-        cerr << argv[0] << " case1.txt 20 20 12 18 12345\n";
-        return 1;
+    DemoPreset demo_preset;
+    bool demo_mode_active = false;
+
+    if (argc >= 2 && string(argv[1]) == "--demo") {
+        if (argc > 3) {
+            cerr << "Usage:\n";
+            cerr << argv[0] << " --demo [easy|mid|hard]\n";
+            return 1;
+        }
+
+        DemoMode mode = DemoMode::EASY;
+        if (argc == 3) {
+            if (!parse_demo_mode(argv[2], mode)) {
+                cerr << "Unknown demo mode: " << argv[2] << "\n";
+                cerr << "Available modes: easy, mid, hard\n";
+                return 1;
+            }
+        }
+
+        string error;
+        if (!load_demo_preset(demo_mode_name(mode), demo_preset, error)) {
+            cerr << "Failed to load demo config: " << error << "\n";
+            return 1;
+        }
+        demo_mode_active = true;
+        std::error_code ec;
+        filesystem::create_directories("demo", ec);
+        if (ec) {
+            cerr << "Failed to create demo directory: " << ec.message() << "\n";
+            return 1;
+        }
+        cout << "Generator demo preset: mode=" << demo_preset.mode_name << "\n";
     }
 
-    string outFile = argv[1];
-    int gridW = stoi(argv[2]);
-    int gridH = stoi(argv[3]);
-    int numComponents = stoi(argv[4]);
-    int numNets = stoi(argv[5]);
-    unsigned seed = static_cast<unsigned>(stoul(argv[6]));
+    if (argc < 7) {
+        if (!demo_mode_active) {
+            cerr << "Usage:\n";
+            cerr << argv[0] << " <output.txt> <gridW> <gridH> <numComponents> <numNets> <seed>\n";
+            cerr << argv[0] << " --demo [easy|mid|hard]\n";
+            cerr << "Example:\n";
+            cerr << argv[0] << " case1.txt 20 20 12 18 12345\n";
+            return 1;
+        }
+    }
+
+    string outFile;
+    int gridW = 0;
+    int gridH = 0;
+    int numComponents = 0;
+    int numNets = 0;
+    unsigned seed = 0;
+    int fixedChancePct = 20;
+    int pinMin = 1;
+    int pinMax = 3;
+    int netDegreeMin = 2;
+    int netDegreeMax = 4;
+    vector<pair<int, int>> sizeChoices = {{1, 1}, {2, 1}, {1, 2}, {2, 2}};
+
+    if (demo_mode_active) {
+        outFile = demo_preset.generator.output_path;
+        gridW = demo_preset.generator.grid_w;
+        gridH = demo_preset.generator.grid_h;
+        numComponents = demo_preset.generator.num_components;
+        numNets = demo_preset.generator.num_nets;
+        seed = demo_preset.generator.seed;
+        fixedChancePct = demo_preset.generator.fixed_chance_pct;
+        pinMin = demo_preset.generator.pin_min;
+        pinMax = demo_preset.generator.pin_max;
+        netDegreeMin = demo_preset.generator.net_degree_min;
+        netDegreeMax = demo_preset.generator.net_degree_max;
+        sizeChoices = demo_preset.generator.size_choices;
+    } else {
+        outFile = argv[1];
+        gridW = stoi(argv[2]);
+        gridH = stoi(argv[3]);
+        numComponents = stoi(argv[4]);
+        numNets = stoi(argv[5]);
+        seed = static_cast<unsigned>(stoul(argv[6]));
+    }
 
     if (gridW <= 0 || gridH <= 0 || numComponents <= 0 || numNets <= 0) {
         cerr << "All numeric arguments must be positive.\n";
@@ -73,14 +194,10 @@ int run_generator_cli(int argc, char* argv[]) {
 
     mt19937 rng(seed);
 
-    vector<pair<int,int>> sizeChoices = {
-        {1,1}, {2,1}, {1,2}, {2,2}
-    };
-
     uniform_int_distribution<int> sizeDist(0, (int)sizeChoices.size() - 1);
     uniform_int_distribution<int> fixedChanceDist(0, 99);
-    uniform_int_distribution<int> pinCountDist(1, 3);
-    uniform_int_distribution<int> netDegreeDist(2, 4);
+    uniform_int_distribution<int> pinCountDist(pinMin, pinMax);
+    uniform_int_distribution<int> netDegreeDist(netDegreeMin, netDegreeMax);
 
     vector<GenComponent> comps;
     comps.reserve(numComponents);
@@ -94,13 +211,24 @@ int run_generator_cli(int argc, char* argv[]) {
         c.w = w;
         c.h = h;
 
-        // Around 20% fixed
-        c.fixed = (fixedChanceDist(rng) < 20);
+        // Demo presets control how congested the benchmark is.
+        c.fixed = (fixedChanceDist(rng) < fixedChancePct);
 
         comps.push_back(c);
+
+        if ((i + 1) % max(1, numComponents / 16) == 0 || i + 1 == numComponents) {
+            print_progress_line("components", i + 1, numComponents, i + 1 == numComponents);
+        }
     }
 
     // 2) Assign fixed positions legally
+    int fixed_total = 0;
+    for (const auto& c : comps) {
+        if (c.fixed) {
+            ++fixed_total;
+        }
+    }
+    int fixed_done = 0;
     for (int i = 0; i < numComponents; ++i) {
         if (!comps[i].fixed) continue;
 
@@ -129,10 +257,14 @@ int run_generator_cli(int argc, char* argv[]) {
         if (!placed) {
             comps[i].fixed = false;
         }
+
+        ++fixed_done;
+        print_progress_line("fixed", fixed_done, fixed_total, fixed_done == fixed_total);
     }
 
     // 3) Generate pins for each component
-    for (auto& c : comps) {
+    for (int i = 0; i < static_cast<int>(comps.size()); ++i) {
+        auto& c = comps[i];
         int pinCount = pinCountDist(rng);
         int maxPins = c.w * c.h;
         pinCount = min(pinCount, maxPins);
@@ -152,6 +284,10 @@ int run_generator_cli(int argc, char* argv[]) {
             pin.dx = allSites[p].first;
             pin.dy = allSites[p].second;
             c.pins.push_back(pin);
+        }
+
+        if ((i + 1) % max(1, numComponents / 16) == 0 || i + 1 == numComponents) {
+            print_progress_line("pins", i + 1, numComponents, i + 1 == numComponents);
         }
     }
 
@@ -193,9 +329,14 @@ int run_generator_cli(int argc, char* argv[]) {
         }
 
         nets.push_back(net);
+
+        if ((ni + 1) % max(1, numNets / 16) == 0 || ni + 1 == numNets) {
+            print_progress_line("nets", ni + 1, numNets, ni + 1 == numNets);
+        }
     }
 
     // 6) Write file
+    print_progress_line("write", 1, 1, true);
     ofstream fout(outFile);
     if (!fout) {
         cerr << "Cannot open output file: " << outFile << "\n";

@@ -16,4 +16,7 @@ int run_visualize_cli(int argc, char* argv[]);
 // Runs simulated annealing placement optimization.
 int run_sa_place_cli(int argc, char* argv[]);
 
+// Removes generated runtime artifacts produced by the interactive CLI workflow.
+int run_cleanup_cli(int argc, char* argv[]);
+
 #endif

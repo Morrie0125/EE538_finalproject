@@ -22,12 +22,22 @@ static string quote_arg(const string& arg) {
 }
 
 int run_visualize_cli(int argc, char* argv[]) {
-    if (argc > 2) {
-        cerr << "Usage: visualize [placement_file]\n";
+    if (argc > 3) {
+        cerr << "Usage: visualize [placement_file] [--demo]\n";
         return 1;
     }
 
-    const string placement_file = (argc == 2) ? argv[1] : "placement_out.txt";
+    bool demo_mode = false;
+    string placement_file = "placement_out.txt";
+
+    for (int i = 1; i < argc; ++i) {
+        const string arg = argv[i];
+        if (arg == "--demo") {
+            demo_mode = true;
+        } else {
+            placement_file = arg;
+        }
+    }
 
     string script = "scripts/visualize.py";
     if (!filesystem::exists(script) && filesystem::exists("visualize.py")) {
@@ -42,14 +52,21 @@ int run_visualize_cli(int argc, char* argv[]) {
     const string quoted_script = quote_arg(script);
     const string quoted_input = quote_arg(placement_file);
 
+    string arg_string;
+    if (demo_mode) {
+        arg_string = " --demo";
+    } else {
+        arg_string = " " + quoted_input;
+    }
+
     vector<string> launch_cmds;
 #ifdef _WIN32
-    launch_cmds.push_back("py -3 " + quoted_script + " " + quoted_input);
-    launch_cmds.push_back("python " + quoted_script + " " + quoted_input);
-    launch_cmds.push_back("python3 " + quoted_script + " " + quoted_input);
+    launch_cmds.push_back("py -3 " + quoted_script + arg_string);
+    launch_cmds.push_back("python " + quoted_script + arg_string);
+    launch_cmds.push_back("python3 " + quoted_script + arg_string);
 #else
-    launch_cmds.push_back("python3 " + quoted_script + " " + quoted_input);
-    launch_cmds.push_back("python " + quoted_script + " " + quoted_input);
+    launch_cmds.push_back("python3 " + quoted_script + arg_string);
+    launch_cmds.push_back("python " + quoted_script + arg_string);
 #endif
 
     int last_rc = 1;
