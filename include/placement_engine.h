@@ -39,7 +39,9 @@ public:
 
     bool isPlacementLegal() const;
     void printPlacement() const;
-    void writePlacementFile(const std::string& filename) const;
+    void writePlacementFile(const std::string& filename,
+                        long long cost = -1,
+                        const std::string& meta = "") const;
 
 private:
     std::vector<std::vector<int>> occ;
